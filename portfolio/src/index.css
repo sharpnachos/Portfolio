@@ -1,0 +1,55 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.see-more-btn {
+  background: transparent !important;
+  border: 2px solid #0d6efd; /* Bootstrap primary color or your choice */
+  color: #0d6efd !important;
+  box-shadow: none;
+  transition: color 0.2s, text-shadow 0.2s, border-color 0.2s;
+}
+
+.see-more-btn:hover, .see-more-btn:focus {
+  color: #fff !important;
+  text-shadow: 0 0 8px #0d6efd, 0 0 16px #0d6efd;
+  border-color: #fff;
+  background: transparent !important;
+}
+
+.index-container {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.bg-video {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.5s ease;
+  z-index: 0;
+}
+
+.bg-video.fade-in {
+  opacity: 1;
+}
+
+.index-content {
+  position: relative;
+  z-index: 1;
+}

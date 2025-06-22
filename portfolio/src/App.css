@@ -1,0 +1,90 @@
+/* Add or update this CSS for the navbar background */
+.App-navbar {
+  background: #000;
+  color: #fff;
+  padding: 0.5rem 1.5rem;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Optional: style dropdown and hamburger for contrast */
+.App-navbar .dropdown {
+  background: #181818;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: row;         /* Change from column to row */
+  min-width: 140px;
+  padding: 0.5rem 0.5rem;      /* Adjust padding for horizontal layout */
+  animation: fadeIn 0.2s;
+  gap: 1rem;                   /* Add space between menu items */
+  justify-content: center;     /* Center items horizontally */
+  align-items: center;         /* Center items vertically */
+}
+
+.App-navbar .dropdown a {
+  color: #fff;
+  text-decoration: none;
+  padding: 0.75rem 1.5rem;
+  transition: background 0.2s;
+  border-radius: 4px;
+}
+
+.App-navbar .dropdown a:hover {
+  background: #333;
+}
+
+.App-navbar .hamburger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.5rem;
+  z-index: 11;
+  transform: rotate(0deg);
+  transition: transform 0.3s;
+}
+
+.App-navbar .hamburger .bar {
+  width: 25px;
+  height: 3px;
+  background: #fff;
+  border-radius: 2px;
+  transition: 0.3s;
+}
+
+.hamburger.open {
+  transform: rotate(90deg);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px);}
+  to { opacity: 1; transform: translateY(0);}
+}
+
+.navbar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Logo left, hamburger right */
+}
+
+.container, .index-container {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.navbar-logo:hover, .navbar-logo:focus {
+  color: #fff !important;
+  text-shadow: 0 0 8px #0d6efd, 0 0 16px #0d6efd;
+  border-color: #fff;
+  background: transparent !important;
+  outline: none;
+  transition: color 0.2s, text-shadow 0.2s;
+}
+
+@import 'bootstrap/dist/css/bootstrap.min.css';
