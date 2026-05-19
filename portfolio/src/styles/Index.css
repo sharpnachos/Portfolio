@@ -35,8 +35,91 @@
 .columns-grid {
   width: min(1380px, 100%);
   display: grid;
-  grid-template-columns: repeat(3, minmax(320px, 1fr));
+  grid-template-columns: repeat(4, minmax(250px, 1fr));
   gap: 20px;
+}
+
+.stepper-breadcrumb {
+  width: min(980px, 100%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.step-dot {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.step-dot span {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.step-dot small {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.step-dot.current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.step-dot.current span {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.step-dot.locked {
+  background: #f8fafc;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.step-dot.locked span {
+  background: #cbd5e1;
+}
+
+.stepper-stage {
+  width: min(980px, 100%);
+}
+
+.stepper-stage .finance-column {
+  min-height: 100%;
+}
+
+.stepper-stage .field-controls {
+  align-items: flex-start;
+}
+
+.stepper-actions {
+  margin-top: 20px;
+  width: min(980px, 100%);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stepper-actions.single-action {
+  justify-content: flex-end;
 }
 
 .finance-column {
@@ -297,6 +380,219 @@
   margin-bottom: 16px;
 }
 
+.debt-timeline {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 14px;
+  margin-top: 20px;
+  margin-bottom: 18px;
+}
+
+.debt-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.debt-timeline-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.debt-timeline-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.timeline-summary-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.timeline-summary-card p {
+  margin: 0 0 4px;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+.timeline-summary-card strong {
+  font-size: 0.98rem;
+}
+
+.payoff-method-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  background: #f8fafc;
+}
+
+.method-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.method-btn.active {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.extra-payment-controls {
+  margin-bottom: 12px;
+}
+
+.extra-payment-controls label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.extra-payment-inputs {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 10px;
+}
+
+.extra-payment-inputs input[type='range']:disabled {
+  opacity: 0.55;
+}
+
+.rollover-toggle {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+}
+
+.rollover-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
+.extra-payment-inputs input[type='number'] {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.92rem;
+}
+
+.debt-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.debt-timeline-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.debt-timeline-item p {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 0.86rem;
+}
+
+.payoff-time-badge {
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #155e75;
+  border: 1px solid #a5f3fc;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.payoff-phase-wrap {
+  margin-top: 14px;
+}
+
+.payoff-phase-wrap h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.payoff-phase-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.payoff-phase-bar {
+  width: 100%;
+  height: 24px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #e2e8f0;
+  overflow: hidden;
+  display: flex;
+}
+
+.payoff-phase-segment {
+  border: none;
+  min-width: 2px;
+  cursor: pointer;
+  background: #0284c7;
+  opacity: 0.88;
+}
+
+.payoff-phase-segment:nth-child(even) {
+  background: #0ea5e9;
+}
+
+.payoff-phase-segment.selected {
+  outline: 2px solid #0f172a;
+  opacity: 1;
+}
+
+.payoff-phase-detail {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  border: 1px solid #bae6fd;
+  background: #e0f2fe;
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+}
+
+.payoff-phase-detail strong {
+  width: 100%;
+}
+
+.empty-debt-state {
+  margin: 0;
+  color: var(--text-soft);
+}
+
 .metric-card {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -364,6 +660,10 @@
 .chart-wrap h3 {
   margin: 0 0 10px;
   font-size: 1rem;
+}
+
+.chart-wrap {
+  margin-bottom: 10px;
 }
 
 .category-bars {
@@ -441,9 +741,145 @@
   padding: 4px 10px;
 }
 
+.net-worth {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.net-worth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.net-worth-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.net-worth-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.net-worth-row-header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  margin-bottom: 6px;
+}
+
+.net-worth-bar {
+  width: 100%;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  background: #e2e8f0;
+}
+
+.net-worth-bar-fill {
+  display: flex;
+  height: 100%;
+}
+
+.net-worth-segment {
+  border: none;
+  min-width: 2px;
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.net-worth-segment.selected {
+  outline: 2px solid #0f172a;
+  opacity: 1;
+}
+
+.net-worth-detail {
+  margin-top: 12px;
+  border: 1px solid #bae6fd;
+  background: #eff6ff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.86rem;
+}
+
+.net-worth-detail strong {
+  width: 100%;
+}
+
+.guidelines {
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.guidelines h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.guideline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guideline-item {
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guideline-item strong {
+  font-size: 0.9rem;
+}
+
+.guideline-item span {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+.guideline-item.pass {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+}
+
+.guideline-item.fail {
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+}
+
+@media (max-width: 1280px) and (min-width: 901px) {
+  .columns-grid {
+    grid-template-columns: repeat(2, minmax(260px, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .columns-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stepper-breadcrumb {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+
+  .stepper-actions {
+    flex-direction: column;
   }
 
   .field-controls {
@@ -461,6 +897,34 @@
 
   .budget-grid {
     grid-template-columns: 1fr;
+  }
+
+  .debt-timeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .debt-timeline-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .extra-payment-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .debt-timeline-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .payoff-phase-detail {
+    flex-direction: column;
+  }
+
+  .net-worth-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 
   .category-bar-header {

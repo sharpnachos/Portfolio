@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import '../styles/Index.css';
 
 function Index() {
@@ -14,18 +14,20 @@ function Index() {
     save: ['#22c55e', '#4ade80', '#86efac', '#bbf7d0']
   };
 
-  const createItem = (label, frequency = 'monthly', category = 'needs') => ({
+  const createItem = (label, frequency = 'monthly', category = 'needs', assetType = 'checking account') => ({
     id: `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label,
     value: '',
     frequency,
     category,
+    assetType,
     balance: '',
     minimumPayment: '',
     interestRate: ''
   });
 
   const [incomeFields, setIncomeFields] = useState([createItem('Primary Paycheck')]);
+  const [assetFields, setAssetFields] = useState([createItem('Primary Account', 'monthly', 'needs', 'checking account')]);
   const [expenseFields, setExpenseFields] = useState([
     createItem('Rent'),
     createItem('Groceries'),
@@ -40,6 +42,28 @@ function Index() {
   const [calculationResult, setCalculationResult] = useState(null);
   const [selectedSegment, setSelectedSegment] = useState(null);
   const [dismissedWarnings, setDismissedWarnings] = useState([]);
+  const [payoffMethod, setPayoffMethod] = useState('snowball');
+  const [additionalDebtPayment, setAdditionalDebtPayment] = useState(0);
+  const [rolloverPaidOffMinimums, setRolloverPaidOffMinimums] = useState(true);
+  const [selectedPayoffPhaseKey, setSelectedPayoffPhaseKey] = useState(null);
+  const [selectedNetWorthSegment, setSelectedNetWorthSegment] = useState(null);
+  const [activeAmountField, setActiveAmountField] = useState(null);
+  const [activeRateField, setActiveRateField] = useState(null);
+  const [activeStep, setActiveStep] = useState(0);
+  const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
+
+  const sanitizeDecimalInput = (rawValue, maxDecimals = 2) => {
+    const value = String(rawValue ?? '').replace(/[^0-9.]/g, '');
+    const parts = value.split('.');
+
+    if (parts.length === 1) {
+      return parts[0];
+    }
+
+    const whole = parts[0];
+    const decimal = parts.slice(1).join('').slice(0, maxDecimals);
+    return `${whole}.${decimal}`;
+  };
 
   const parseAmount = (rawValue) => {
     if (!rawValue) {
@@ -71,6 +95,22 @@ function Index() {
     }).format(value)
   );
 
+  const formatCurrencyDisplay = (rawValue) => {
+    if (!rawValue) {
+      return '';
+    }
+
+    return formatCurrency(parseAmount(rawValue));
+  };
+
+  const formatPercentDisplay = (rawValue) => {
+    if (!rawValue) {
+      return '';
+    }
+
+    return `${parseAmount(rawValue).toFixed(2)}%`;
+  };
+
   const getBudgetStatus = (actual, budget) => {
     const difference = actual - budget;
 
@@ -81,11 +121,362 @@ function Index() {
     return difference > 0 ? 'Over Budget' : 'Under Budget';
   };
 
+  const formatPayoffTime = (months) => {
+    if (!Number.isFinite(months) || months <= 0) {
+      return 'Paid off';
+    }
+
+    const years = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+
+    if (years === 0) {
+      return `${remainingMonths} month${remainingMonths === 1 ? '' : 's'}`;
+    }
+
+    if (remainingMonths === 0) {
+      return `${years} year${years === 1 ? '' : 's'}`;
+    }
+
+    return `${years} year${years === 1 ? '' : 's'} ${remainingMonths} month${remainingMonths === 1 ? '' : 's'}`;
+  };
+
+  const getPayoffMonthYear = (months) => {
+    const now = new Date();
+    const payoffDate = new Date(now.getFullYear(), now.getMonth() + months, 1);
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      year: 'numeric'
+    }).format(payoffDate);
+  };
+
+  const getMonthYearFromOffset = (monthsOffset) => {
+    const now = new Date();
+    const targetDate = new Date(now.getFullYear(), now.getMonth() + monthsOffset, 1);
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      year: 'numeric'
+    }).format(targetDate);
+  };
+
+  const payoffData = useMemo(() => {
+    const preparedDebts = debtFields
+      .map((debt, index) => ({
+        id: debt.id,
+        label: debt.label || `Debt ${index + 1}`,
+        balance: Math.max(parseAmount(debt.balance), 0),
+        minimumPayment: Math.max(parseAmount(debt.minimumPayment), 0),
+        annualRate: Math.max(parseAmount(debt.interestRate), 0)
+      }))
+      .filter((debt) => debt.balance > 0);
+
+    if (preparedDebts.length === 0) {
+      return {
+        debts: [],
+        phases: [],
+        totalPhaseMonths: 0
+      };
+    }
+
+    const sortByMethod = (items) => {
+      if (payoffMethod === 'avalanche') {
+        return [...items].sort((a, b) => {
+          if (b.annualRate !== a.annualRate) {
+            return b.annualRate - a.annualRate;
+          }
+
+          return a.balance - b.balance;
+        });
+      }
+
+      return [...items].sort((a, b) => {
+        if (a.balance !== b.balance) {
+          return a.balance - b.balance;
+        }
+
+        return b.annualRate - a.annualRate;
+      });
+    };
+
+    const orderedDebts = sortByMethod(preparedDebts).map((debt) => ({
+      ...debt,
+      remainingBalance: debt.balance,
+      payoffMonth: null
+    }));
+
+    const baselineDebtPayment = orderedDebts.reduce((sum, debt) => sum + debt.minimumPayment, 0) + additionalDebtPayment;
+    const maxMonths = 1200;
+    const epsilon = 0.005;
+    const monthlyPriorityLog = [];
+
+    for (let month = 1; month <= maxMonths; month += 1) {
+      const activeDebts = orderedDebts.filter((debt) => debt.remainingBalance > epsilon);
+
+      if (activeDebts.length === 0) {
+        break;
+      }
+
+      activeDebts.forEach((debt) => {
+        const monthlyRate = debt.annualRate / 100 / 12;
+        if (monthlyRate > 0) {
+          debt.remainingBalance += debt.remainingBalance * monthlyRate;
+        }
+      });
+
+      let minimumPaidThisMonth = 0;
+      activeDebts.forEach((debt) => {
+        const minimumDue = Math.min(debt.minimumPayment, debt.remainingBalance);
+        debt.remainingBalance -= minimumDue;
+        minimumPaidThisMonth += minimumDue;
+
+        if (debt.remainingBalance <= epsilon && debt.payoffMonth === null) {
+          debt.remainingBalance = 0;
+          debt.payoffMonth = month;
+        }
+      });
+
+      let rolloverBudget = rolloverPaidOffMinimums
+        ? Math.max(baselineDebtPayment - minimumPaidThisMonth, 0)
+        : Math.max(additionalDebtPayment, 0);
+      const priorityDebts = sortByMethod(orderedDebts).filter((debt) => debt.remainingBalance > epsilon);
+
+      if (priorityDebts.length > 0) {
+        monthlyPriorityLog.push({
+          month,
+          targetDebtId: priorityDebts[0].id,
+          targetDebtLabel: priorityDebts[0].label,
+          annualRate: priorityDebts[0].annualRate,
+          minimumPayment: priorityDebts[0].minimumPayment,
+          extraPayment: 0
+        });
+      }
+
+      for (let index = 0; index < priorityDebts.length && rolloverBudget > 0; index += 1) {
+        const debt = priorityDebts[index];
+        const extraPayment = Math.min(rolloverBudget, debt.remainingBalance);
+        debt.remainingBalance -= extraPayment;
+        rolloverBudget -= extraPayment;
+
+        if (index === 0 && monthlyPriorityLog.length > 0 && monthlyPriorityLog[monthlyPriorityLog.length - 1].month === month) {
+          monthlyPriorityLog[monthlyPriorityLog.length - 1].extraPayment += extraPayment;
+        }
+
+        if (debt.remainingBalance <= epsilon && debt.payoffMonth === null) {
+          debt.remainingBalance = 0;
+          debt.payoffMonth = month;
+        }
+      }
+    }
+
+    const debts = sortByMethod(orderedDebts).map((debt) => ({
+      ...debt,
+      payoffText: debt.payoffMonth ? formatPayoffTime(debt.payoffMonth) : 'More than 100 years'
+    }));
+
+    const phases = [];
+    monthlyPriorityLog.forEach((entry) => {
+      const totalPayment = entry.minimumPayment + entry.extraPayment;
+      const lastPhase = phases[phases.length - 1];
+
+      if (
+        lastPhase
+        && lastPhase.targetDebtId === entry.targetDebtId
+      ) {
+        lastPhase.endMonth = entry.month;
+        lastPhase.months += 1;
+        lastPhase.totalPayment = totalPayment;
+        lastPhase.extraPaymentTotal += entry.extraPayment;
+      } else {
+        phases.push({
+          key: `${entry.targetDebtId}-${entry.month}`,
+          targetDebtId: entry.targetDebtId,
+          targetDebtLabel: entry.targetDebtLabel,
+          annualRate: entry.annualRate,
+          minimumPayment: entry.minimumPayment,
+          extraPayment: entry.extraPayment,
+          totalPayment,
+          startMonth: entry.month,
+          endMonth: entry.month,
+          months: 1,
+          extraPaymentTotal: entry.extraPayment
+        });
+      }
+    });
+
+    const totalPhaseMonths = phases.reduce((sum, phase) => sum + phase.months, 0);
+    const phasesWithWidth = phases.map((phase) => ({
+      ...phase,
+      averageExtraPayment: phase.months > 0 ? phase.extraPaymentTotal / phase.months : 0,
+      widthPercent: totalPhaseMonths > 0 ? (phase.months / totalPhaseMonths) * 100 : 0
+    }));
+
+    return {
+      debts,
+      phases: phasesWithWidth,
+      totalPhaseMonths
+    };
+  }, [debtFields, payoffMethod, additionalDebtPayment, rolloverPaidOffMinimums]);
+
+  const payoffTimeline = payoffData.debts;
+  const payoffPhases = payoffData.phases;
+
+  const totalDebtPayoffSummary = useMemo(() => {
+    if (payoffTimeline.length === 0) {
+      return null;
+    }
+
+    const hasUnresolvedDebts = payoffTimeline.some((debt) => debt.payoffMonth === null);
+    if (hasUnresolvedDebts) {
+      return {
+        totalTime: 'More than 100 years',
+        paidOffBy: 'Not within projection window'
+      };
+    }
+
+    const maxPayoffMonth = payoffTimeline.reduce((latest, debt) => {
+      return Math.max(latest, debt.payoffMonth || 0);
+    }, 0);
+
+    return {
+      totalTime: formatPayoffTime(maxPayoffMonth),
+      paidOffBy: getPayoffMonthYear(maxPayoffMonth)
+    };
+  }, [payoffTimeline]);
+
+  const payoffTimelineStartLabel = getMonthYearFromOffset(0);
+  const payoffTimelineEndLabel = totalDebtPayoffSummary && totalDebtPayoffSummary.paidOffBy !== 'Not within projection window'
+    ? totalDebtPayoffSummary.paidOffBy
+    : 'Open End';
+
+  const maxAdditionalDebtPayment = calculationResult
+    ? Math.max(0, Math.floor(calculationResult.monthlyIncome - calculationResult.totalExpenses))
+    : 0;
+
+  const netWorthData = useMemo(() => {
+    const assets = assetFields
+      .map((asset, index) => ({
+        id: asset.id,
+        label: asset.label || `Asset ${index + 1}`,
+        type: asset.assetType || 'other',
+        amount: Math.max(parseAmount(asset.value), 0)
+      }))
+      .filter((asset) => asset.amount > 0);
+
+    const debts = debtFields
+      .map((debt, index) => ({
+        id: debt.id,
+        label: debt.label || `Debt ${index + 1}`,
+        amount: Math.max(parseAmount(debt.balance), 0),
+        minimumPayment: Math.max(parseAmount(debt.minimumPayment), 0),
+        annualRate: Math.max(parseAmount(debt.interestRate), 0)
+      }))
+      .filter((debt) => debt.amount > 0);
+
+    const totalAssets = assets.reduce((sum, asset) => sum + asset.amount, 0);
+    const totalDebts = debts.reduce((sum, debt) => sum + debt.amount, 0);
+    const maxMagnitude = Math.max(totalAssets, totalDebts, 0);
+
+    const assetsWithWidth = assets.map((asset) => ({
+      ...asset,
+      widthPercent: maxMagnitude > 0 ? (asset.amount / maxMagnitude) * 100 : 0
+    }));
+
+    const debtsWithWidth = debts.map((debt) => ({
+      ...debt,
+      widthPercent: maxMagnitude > 0 ? (debt.amount / maxMagnitude) * 100 : 0
+    }));
+
+    const scalePercentAssets = maxMagnitude > 0 ? (totalAssets / maxMagnitude) * 100 : 0;
+    const scalePercentDebts = maxMagnitude > 0 ? (totalDebts / maxMagnitude) * 100 : 0;
+
+    return {
+      totalAssets,
+      totalDebts,
+      netWorth: totalAssets - totalDebts,
+      maxMagnitude,
+      scalePercentAssets,
+      scalePercentDebts,
+      assets: assetsWithWidth,
+      debts: debtsWithWidth
+    };
+  }, [assetFields, debtFields]);
+
+  const guidelines = useMemo(() => {
+    if (!calculationResult) {
+      return [];
+    }
+
+    const monthlyIncome = calculationResult.monthlyIncome;
+    const needsSummary = calculationResult.categorySummaries.find((item) => item.category === 'needs');
+    const monthlyNeeds = needsSummary ? needsSummary.actual : 0;
+    const sixMonthNeeds = monthlyNeeds * 6;
+
+    const totalSavingsAccounts = assetFields
+      .filter((asset) => (asset.assetType || '').toLowerCase() === 'savings account')
+      .reduce((sum, asset) => sum + Math.max(parseAmount(asset.value), 0), 0);
+
+    const totalCheckingAccounts = assetFields
+      .filter((asset) => (asset.assetType || '').toLowerCase() === 'checking account')
+      .reduce((sum, asset) => sum + Math.max(parseAmount(asset.value), 0), 0);
+
+    const totalRent = expenseFields
+      .filter((expense) => (expense.label || '').toLowerCase().includes('rent'))
+      .reduce((sum, expense) => sum + Math.max(parseAmount(expense.value), 0), 0);
+
+    const totalCarPayment = expenseFields
+      .filter((expense) => {
+        const label = (expense.label || '').toLowerCase();
+        return label.includes('car payment') || label.includes('auto payment');
+      })
+      .reduce((sum, expense) => sum + Math.max(parseAmount(expense.value), 0), 0);
+
+    const rentLow = monthlyIncome * 0.25;
+    const rentHigh = monthlyIncome * 0.33;
+    const carLimit = monthlyIncome * 0.08;
+
+    return [
+      {
+        id: 'savings-needs-6x',
+        label: 'Savings accounts should be at least 6x monthly needs.',
+        detail: `${formatCurrency(totalSavingsAccounts)} vs required ${formatCurrency(sixMonthNeeds)}`,
+        passed: totalSavingsAccounts >= sixMonthNeeds
+      },
+      {
+        id: 'checking-needs-band',
+        label: 'Checking accounts should be between 1x and 2x monthly needs.',
+        detail: `${formatCurrency(totalCheckingAccounts)} vs range ${formatCurrency(monthlyNeeds)} - ${formatCurrency(monthlyNeeds * 2)}`,
+        passed: totalCheckingAccounts >= monthlyNeeds && totalCheckingAccounts <= (monthlyNeeds * 2)
+      },
+      {
+        id: 'rent-budget-band',
+        label: 'Rent budget should be between 25% and 33% of monthly income.',
+        detail: `${formatCurrency(totalRent)} vs range ${formatCurrency(rentLow)} - ${formatCurrency(rentHigh)}`,
+        passed: totalRent >= rentLow && totalRent <= rentHigh
+      },
+      {
+        id: 'car-budget-cap',
+        label: 'Car payment budget should be 8% or less of monthly income.',
+        detail: `${formatCurrency(totalCarPayment)} vs max ${formatCurrency(carLimit)}`,
+        passed: totalCarPayment <= carLimit
+      }
+    ];
+  }, [assetFields, expenseFields, calculationResult]);
+
   const updateFieldValue = (setter, values, index, newValue) => {
     const nextValues = [...values];
     nextValues[index] = {
       ...nextValues[index],
-      value: newValue
+      value: sanitizeDecimalInput(newValue)
+    };
+    setter(nextValues);
+  };
+
+  const updateFieldAmountByKey = (setter, values, index, key, newValue) => {
+    const nextValues = [...values];
+    nextValues[index] = {
+      ...nextValues[index],
+      [key]: sanitizeDecimalInput(newValue)
     };
     setter(nextValues);
   };
@@ -113,6 +504,15 @@ function Index() {
     nextValues[index] = {
       ...nextValues[index],
       [key]: newValue
+    };
+    setter(nextValues);
+  };
+
+  const updateAssetType = (setter, values, index, newAssetType) => {
+    const nextValues = [...values];
+    nextValues[index] = {
+      ...nextValues[index],
+      assetType: newAssetType
     };
     setter(nextValues);
   };
@@ -162,6 +562,68 @@ function Index() {
 
   const dismissWarning = (warningKey) => {
     setDismissedWarnings((previous) => [...previous, warningKey]);
+  };
+
+  const inputSteps = [
+    {
+      key: 'income',
+      title: 'Income',
+      values: incomeFields,
+      setter: setIncomeFields,
+      prefix: 'income',
+      addText: 'Add Income'
+    },
+    {
+      key: 'assets',
+      title: 'Assets',
+      values: assetFields,
+      setter: setAssetFields,
+      prefix: 'asset',
+      addText: 'Add Asset'
+    },
+    {
+      key: 'expenses',
+      title: 'Expenses',
+      values: expenseFields,
+      setter: setExpenseFields,
+      prefix: 'expense',
+      addText: 'Add Expense'
+    },
+    {
+      key: 'debt',
+      title: 'Debt',
+      values: debtFields,
+      setter: setDebtFields,
+      prefix: 'debt',
+      addText: 'Add Debt'
+    }
+  ];
+
+  const handleNextStep = () => {
+    if (activeStep >= inputSteps.length - 1) {
+      handleCalculate();
+      return;
+    }
+
+    const nextStep = activeStep + 1;
+    setActiveStep(nextStep);
+    setMaxUnlockedStep((previous) => Math.max(previous, nextStep));
+  };
+
+  const handlePreviousStep = () => {
+    if (activeStep === 0) {
+      return;
+    }
+
+    setActiveStep(activeStep - 1);
+  };
+
+  const handleStepDotClick = (stepIndex) => {
+    if (stepIndex > maxUnlockedStep) {
+      return;
+    }
+
+    setActiveStep(stepIndex);
   };
 
   const handleCalculate = () => {
@@ -285,6 +747,10 @@ function Index() {
     }
 
     const totalExpenses = categorySummaries.reduce((sum, item) => sum + item.actual, 0);
+    const remainingAfterExpenses = monthlyIncome - totalExpenses;
+    const defaultAdditionalPayment = remainingAfterExpenses >= 100
+      ? 100
+      : Math.max(0, Math.floor(remainingAfterExpenses));
 
     setCalculationResult({
       monthlyIncome,
@@ -292,8 +758,14 @@ function Index() {
       categorySummaries,
       warnings
     });
+    setAdditionalDebtPayment(defaultAdditionalPayment);
+    setPayoffMethod('snowball');
+    setRolloverPaidOffMinimums(true);
     setDismissedWarnings([]);
     setSelectedSegment(null);
+    setSelectedPayoffPhaseKey(null);
+    setSelectedNetWorthSegment(null);
+    setMaxUnlockedStep(inputSteps.length - 1);
     setFormCollapsed(true);
   };
 
@@ -340,31 +812,43 @@ function Index() {
                     <input
                       id={`${fieldId}-balance`}
                       type="text"
-                      value={item.balance || ''}
+                      inputMode="decimal"
+                      value={activeAmountField === `${fieldId}-balance` ? (item.balance || '') : formatCurrencyDisplay(item.balance)}
                       placeholder="Balance"
-                      onChange={(event) => updateDebtField(setter, values, index, 'balance', event.target.value)}
+                      onFocus={() => setActiveAmountField(`${fieldId}-balance`)}
+                      onBlur={() => setActiveAmountField(null)}
+                      onChange={(event) => updateFieldAmountByKey(setter, values, index, 'balance', event.target.value)}
                     />
                     <input
                       id={`${fieldId}-minimum`}
                       type="text"
-                      value={item.minimumPayment || ''}
+                      inputMode="decimal"
+                      value={activeAmountField === `${fieldId}-minimum` ? (item.minimumPayment || '') : formatCurrencyDisplay(item.minimumPayment)}
                       placeholder="Min monthly payment"
-                      onChange={(event) => updateDebtField(setter, values, index, 'minimumPayment', event.target.value)}
+                      onFocus={() => setActiveAmountField(`${fieldId}-minimum`)}
+                      onBlur={() => setActiveAmountField(null)}
+                      onChange={(event) => updateFieldAmountByKey(setter, values, index, 'minimumPayment', event.target.value)}
                     />
                     <input
                       id={`${fieldId}-interest`}
                       type="text"
-                      value={item.interestRate || ''}
+                      inputMode="decimal"
+                      value={activeRateField === `${fieldId}-interest` ? (item.interestRate || '') : formatPercentDisplay(item.interestRate)}
                       placeholder="Interest rate %"
-                      onChange={(event) => updateDebtField(setter, values, index, 'interestRate', event.target.value)}
+                      onFocus={() => setActiveRateField(`${fieldId}-interest`)}
+                      onBlur={() => setActiveRateField(null)}
+                      onChange={(event) => updateDebtField(setter, values, index, 'interestRate', sanitizeDecimalInput(event.target.value))}
                     />
                   </div>
                 ) : (
                   <input
                     id={fieldId}
                     type="text"
-                    value={item.value}
+                    inputMode="decimal"
+                    value={activeAmountField === fieldId ? item.value : formatCurrencyDisplay(item.value)}
                     placeholder={`Enter ${item.label.toLowerCase()} amount`}
+                    onFocus={() => setActiveAmountField(fieldId)}
+                    onBlur={() => setActiveAmountField(null)}
                     onChange={(event) => updateFieldValue(setter, values, index, event.target.value)}
                   />
                 )}
@@ -390,6 +874,20 @@ function Index() {
                     <option value="needs">Needs</option>
                     <option value="wants">Wants</option>
                     <option value="save">Save</option>
+                  </select>
+                )}
+                {title === 'Assets' && (
+                  <select
+                    className="frequency-select"
+                    value={item.assetType || 'checking account'}
+                    onChange={(event) => updateAssetType(setter, values, index, event.target.value)}
+                    aria-label={`${item.label} asset type`}
+                  >
+                    <option value="checking account">Checking account</option>
+                    <option value="savings account">Savings account</option>
+                    <option value="retirement account">Retirement account</option>
+                    <option value="investment account">Investment account</option>
+                    <option value="other">Other</option>
                   </select>
                 )}
                 <button
@@ -423,19 +921,53 @@ function Index() {
 
       {!formCollapsed && (
         <>
-          <div className="columns-grid">
-            {renderColumn('Income', incomeFields, setIncomeFields, 'income', 'Add Income')}
-            {renderColumn('Expenses', expenseFields, setExpenseFields, 'expense', 'Add Expense')}
-            {renderColumn('Debt', debtFields, setDebtFields, 'debt', 'Add Debt')}
+          <div className="stepper-breadcrumb" aria-label="Input steps">
+            {inputSteps.map((step, index) => {
+              const isCurrent = index === activeStep;
+              const isUnlocked = index <= maxUnlockedStep;
+
+              return (
+                <button
+                  key={step.key}
+                  type="button"
+                  className={`step-dot ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : 'locked'}`}
+                  onClick={() => handleStepDotClick(index)}
+                  disabled={!isUnlocked}
+                  aria-label={`Go to ${step.title}`}
+                >
+                  <span>{index + 1}</span>
+                  <small>{step.title}</small>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="calculate-row">
+          <div className="stepper-stage">
+            {renderColumn(
+              inputSteps[activeStep].title,
+              inputSteps[activeStep].values,
+              inputSteps[activeStep].setter,
+              inputSteps[activeStep].prefix,
+              inputSteps[activeStep].addText
+            )}
+          </div>
+
+          <div className={`stepper-actions ${activeStep === 0 ? 'single-action' : ''}`}>
+            {activeStep > 0 && (
+              <button
+                type="button"
+                className="add-field-btn"
+                onClick={handlePreviousStep}
+              >
+                Previous
+              </button>
+            )}
             <button
               type="button"
               className="calculate-btn"
-              onClick={handleCalculate}
+              onClick={handleNextStep}
             >
-              Calculate
+              {activeStep === inputSteps.length - 1 ? 'Calculate' : 'Next'}
             </button>
           </div>
         </>
@@ -448,7 +980,11 @@ function Index() {
             <button
               type="button"
               className="add-field-btn"
-              onClick={() => setFormCollapsed(false)}
+              onClick={() => {
+                setFormCollapsed(false);
+                setActiveStep(inputSteps.length - 1);
+                setMaxUnlockedStep(inputSteps.length - 1);
+              }}
             >
               Edit Inputs
             </button>
@@ -535,7 +1071,11 @@ function Index() {
                     ))}
                   </div>
                   <div className="category-bar-meta">
-                    <span className={`budget-status ${item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}`}>
+                    <span className={`budget-status ${
+                      item.category === 'save'
+                        ? (item.status === 'Under Budget' ? 'status-over' : item.status === 'Over Budget' ? 'status-under' : 'status-at')
+                        : (item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at')
+                    }`}>
                       {item.status}
                     </span>
                     {item.difference > 0 && (
@@ -555,6 +1095,233 @@ function Index() {
               ))}
             </div>
           </div>
+
+          <section className="debt-timeline" aria-label="Debt payoff timeline">
+            <div className="debt-timeline-header">
+              <h3>Debt Payoff Timeline</h3>
+              <div className="payoff-method-toggle" role="group" aria-label="Payoff method">
+                <button
+                  type="button"
+                  className={`method-btn ${payoffMethod === 'snowball' ? 'active' : ''}`}
+                  onClick={() => setPayoffMethod('snowball')}
+                >
+                  Snowball
+                </button>
+                <button
+                  type="button"
+                  className={`method-btn ${payoffMethod === 'avalanche' ? 'active' : ''}`}
+                  onClick={() => setPayoffMethod('avalanche')}
+                >
+                  Avalanche
+                </button>
+              </div>
+            </div>
+
+            {totalDebtPayoffSummary && (
+              <div className="debt-timeline-summary">
+                <div className="timeline-summary-card">
+                  <p>Total debt payoff time</p>
+                  <strong>{totalDebtPayoffSummary.totalTime}</strong>
+                </div>
+                <div className="timeline-summary-card">
+                  <p>Estimated debt-free month</p>
+                  <strong>{totalDebtPayoffSummary.paidOffBy}</strong>
+                </div>
+              </div>
+            )}
+
+            <div className="extra-payment-controls">
+              <label htmlFor="extra-debt-payment">Additional monthly debt payment</label>
+              <div className="extra-payment-inputs">
+                <input
+                  id="extra-debt-payment"
+                  type="range"
+                  min="0"
+                  max={maxAdditionalDebtPayment}
+                  step="10"
+                  value={Math.min(additionalDebtPayment, maxAdditionalDebtPayment)}
+                  onChange={(event) => setAdditionalDebtPayment(parseAmount(event.target.value))}
+                  disabled={maxAdditionalDebtPayment === 0}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max={maxAdditionalDebtPayment}
+                  step="10"
+                  value={Math.min(additionalDebtPayment, maxAdditionalDebtPayment)}
+                  onChange={(event) => {
+                    const nextValue = parseAmount(event.target.value);
+                    setAdditionalDebtPayment(Math.min(nextValue, maxAdditionalDebtPayment));
+                  }}
+                />
+              </div>
+              <label className="rollover-toggle">
+                <input
+                  type="checkbox"
+                  checked={rolloverPaidOffMinimums}
+                  onChange={(event) => setRolloverPaidOffMinimums(event.target.checked)}
+                />
+                Add paid-off debt minimum payments to extra payment
+              </label>
+            </div>
+
+            <div className="debt-timeline-list">
+              {payoffTimeline.length === 0 && (
+                <p className="empty-debt-state">Add debt balances to see estimated payoff timelines.</p>
+              )}
+              {payoffTimeline.map((debt) => (
+                <article key={debt.id} className="debt-timeline-item">
+                  <div>
+                    <strong>{debt.label}</strong>
+                    <p>
+                      Balance {formatCurrency(debt.balance)} | Min {formatCurrency(debt.minimumPayment)} | APR {debt.annualRate.toFixed(2)}%
+                    </p>
+                  </div>
+                  <span className="payoff-time-badge">{debt.payoffText}</span>
+                </article>
+              ))}
+            </div>
+
+            <div className="payoff-phase-wrap">
+              <h4>Payoff Timeline</h4>
+              <div className="payoff-phase-labels">
+                <span>{payoffTimelineStartLabel}</span>
+                <span>{payoffTimelineEndLabel}</span>
+              </div>
+              <div className="payoff-phase-bar" aria-label="Debt payoff phase timeline">
+                {payoffPhases.map((phase) => (
+                  <button
+                    key={phase.key}
+                    type="button"
+                    className={`payoff-phase-segment ${selectedPayoffPhaseKey === phase.key ? 'selected' : ''}`}
+                    style={{ width: `${phase.widthPercent}%` }}
+                    onClick={() => setSelectedPayoffPhaseKey(phase.key)}
+                    title={`${phase.targetDebtLabel} from month ${phase.startMonth} to ${phase.endMonth}`}
+                  />
+                ))}
+              </div>
+              {payoffPhases.length === 0 && (
+                <p className="empty-debt-state">No payoff phases to display yet.</p>
+              )}
+              {(() => {
+                const activePhase = payoffPhases.find((phase) => phase.key === selectedPayoffPhaseKey) || payoffPhases[0];
+
+                if (!activePhase) {
+                  return null;
+                }
+
+                return (
+                  <div className="payoff-phase-detail" role="status" aria-live="polite">
+                    <strong>{activePhase.targetDebtLabel}</strong>
+                    <span>Months {activePhase.startMonth} - {activePhase.endMonth}</span>
+                    <span>Payment: {formatCurrency(activePhase.minimumPayment)} + {formatCurrency(activePhase.averageExtraPayment)}</span>
+                    <span>Interest rate: {activePhase.annualRate.toFixed(2)}%</span>
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+
+          <section className="net-worth" aria-label="Net worth summary">
+            <div className="net-worth-header">
+              <h3>Net Worth</h3>
+              <strong>{formatCurrency(netWorthData.netWorth)}</strong>
+            </div>
+            <div className="net-worth-bars">
+              <div className="net-worth-row">
+                <div className="net-worth-row-header">
+                  <span>Assets</span>
+                  <span>{formatCurrency(netWorthData.totalAssets)}</span>
+                </div>
+                <div className="net-worth-bar assets-bar">
+                  <div className="net-worth-bar-fill" style={{ width: `${netWorthData.scalePercentAssets}%` }}>
+                    {netWorthData.assets.map((asset, index) => (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        className={`net-worth-segment ${selectedNetWorthSegment && selectedNetWorthSegment.type === 'asset' && selectedNetWorthSegment.id === asset.id ? 'selected' : ''}`}
+                        style={{
+                          width: `${asset.widthPercent}%`,
+                          backgroundColor: segmentPalette.needs[index % segmentPalette.needs.length]
+                        }}
+                        onClick={() => setSelectedNetWorthSegment({ type: 'asset', id: asset.id })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="net-worth-row">
+                <div className="net-worth-row-header">
+                  <span>Debts</span>
+                  <span>{formatCurrency(netWorthData.totalDebts)}</span>
+                </div>
+                <div className="net-worth-bar debts-bar">
+                  <div className="net-worth-bar-fill" style={{ width: `${netWorthData.scalePercentDebts}%` }}>
+                    {netWorthData.debts.map((debt, index) => (
+                      <button
+                        key={debt.id}
+                        type="button"
+                        className={`net-worth-segment ${selectedNetWorthSegment && selectedNetWorthSegment.type === 'debt' && selectedNetWorthSegment.id === debt.id ? 'selected' : ''}`}
+                        style={{
+                          width: `${debt.widthPercent}%`,
+                          backgroundColor: segmentPalette.wants[index % segmentPalette.wants.length]
+                        }}
+                        onClick={() => setSelectedNetWorthSegment({ type: 'debt', id: debt.id })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {(() => {
+              if (!selectedNetWorthSegment) {
+                return null;
+              }
+
+              if (selectedNetWorthSegment.type === 'asset') {
+                const asset = netWorthData.assets.find((entry) => entry.id === selectedNetWorthSegment.id);
+                if (!asset) {
+                  return null;
+                }
+
+                return (
+                  <div className="net-worth-detail" role="status" aria-live="polite">
+                    <strong>{asset.label}</strong>
+                    <span>Type: {asset.type}</span>
+                    <span>Amount: {formatCurrency(asset.amount)}</span>
+                  </div>
+                );
+              }
+
+              const debt = netWorthData.debts.find((entry) => entry.id === selectedNetWorthSegment.id);
+              if (!debt) {
+                return null;
+              }
+
+              return (
+                <div className="net-worth-detail" role="status" aria-live="polite">
+                  <strong>{debt.label}</strong>
+                  <span>Balance: {formatCurrency(debt.amount)}</span>
+                  <span>Min payment: {formatCurrency(debt.minimumPayment)}</span>
+                  <span>Interest rate: {debt.annualRate.toFixed(2)}%</span>
+                </div>
+              );
+            })()}
+          </section>
+
+          <section className="guidelines" aria-label="Guidelines and limits">
+            <h3>Guidelines and Limits</h3>
+            <div className="guideline-list">
+              {guidelines.map((rule) => (
+                <article key={rule.id} className={`guideline-item ${rule.passed ? 'pass' : 'fail'}`}>
+                  <strong>{rule.label}</strong>
+                  <span>{rule.detail}</span>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
       )}
     </div>
