@@ -78,6 +78,13 @@
   margin-right: 0 !important;
 }
 
+.home-content {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
 .navbar-logo:hover, .navbar-logo:focus {
   color: #fff !important;
   text-shadow: 0 0 8px #0d6efd, 0 0 16px #0d6efd;

@@ -11,7 +11,7 @@ const Layout = ({ children }) => {
     return (
         <Fragment>
             {!hideNavbar && <Navbar />}
-            <div className="container">
+            <div className={hideNavbar ? 'home-content' : 'container'}>
                 {children}
             </div>
             {/* <footer className="footer">
