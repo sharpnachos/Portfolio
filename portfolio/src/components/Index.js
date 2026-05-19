@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import '../styles/Index.css';
 import TypingAnimation from '../animations/TypingAnimation';
 import SeeMore from './SeeMore';
@@ -13,23 +13,25 @@ function Index() {
   };
   const videoRef = useRef(null);
 
-    useEffect(() => {
+  const handleVideoLoaded = () => {
     if (videoRef.current) {
-      videoRef.current.playbackRate = 1; // 0.5 = half speed, adjust as needed
+      videoRef.current.playbackRate = 1.25;
     }
-  }, []);
+  };
 
   return (
     <div className="index-container">
       {/* Video Background */}
       <video
-      ref={videoRef}
+        ref={videoRef}
         className="bg-video"
         src={backgroundVideo}
         autoPlay
         loop
         muted
         playsInline
+        preload="auto"
+        onLoadedMetadata={handleVideoLoaded}
       />
       <div className="index-content">
         <h1>

@@ -17,13 +17,13 @@ function Navbar() {
   return (
     <nav className="App-navbar">
       <div className="navbar-content">
-        <span
+        <h2
           className="navbar-logo"
           style={{ cursor: 'pointer' }}
           onClick={handleLogoClick}
         >
-          Thomas
-        </span>
+          Thomas Walsh
+        </h2>
         <button
           className={`hamburger${open ? ' open' : ''}`}
           onClick={handleToggle}
@@ -37,9 +37,9 @@ function Navbar() {
       </div>
       {open && (
         <div className="dropdown">
-          <a href="#about" onClick={handleClose}>About</a>
-          <a href="#work" onClick={handleClose}>Work</a>
-          <a href="#contact" onClick={handleClose}>Contact</a>
+          <a href="/about" onClick={handleClose}>About</a>
+          <a href="/work" onClick={handleClose}>Work</a>
+          <a href="/contact" onClick={handleClose}>Contact</a>
         </div>
       )}
     </nav>

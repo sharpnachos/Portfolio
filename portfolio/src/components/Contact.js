@@ -6,17 +6,17 @@ import { FaEnvelope, FaGithub, FaLinkedin } from "react-icons/fa";
 const contactOptions = [
   {
     name: "GitHub",
-    url: "https://github.com/yourusername",
+    url: "https://github.com/sharpnachos",
     icon: <FaGithub />,
   },
   {
     name: "Email",
-    url: "mailto:your.email@example.com",
+    url: "mailto:lawrencetwalsh@gmail.com",
     icon: <FaEnvelope />,
   },
   {
     name: "LinkedIn",
-    url: "https://www.linkedin.com/in/yourprofile",
+    url: "https://www.linkedin.com/in/lawrencethomaswalshiii",
     icon: <FaLinkedin />,
   },
 ];
