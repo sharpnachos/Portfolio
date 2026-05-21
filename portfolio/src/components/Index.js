@@ -1,31 +1,28 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import '../styles/Index.css';
+import '../styles/Onboarding.css';
+import FinanceInputColumn from './finance/FinanceInputColumn';
+import AboutMeColumn from './finance/AboutMeColumn';
+import OnboardingScreens from './finance/OnboardingScreens';
+import ResultsPanel from './finance/ResultsPanel';
+import {
+  categoryOrder,
+  categoryLabels,
+  segmentPalette,
+  createItem,
+  createContributionItem,
+  sanitizeDecimalInput,
+  parseAmount,
+  getIncomeMultiplier,
+  getBudgetStatus,
+  formatPayoffTime,
+  getPayoffMonthYear,
+  getMonthYearFromOffset
+} from './finance/financeHelpers';
+
+const ALL_STEP_KEYS = ['income', 'assets', 'contributions', 'expenses', 'debt', 'about-me'];
 
 function Index() {
-  const categoryOrder = ['needs', 'wants', 'save'];
-  const categoryLabels = {
-    needs: 'Needs',
-    wants: 'Wants',
-    save: 'Save'
-  };
-  const segmentPalette = {
-    needs: ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'],
-    wants: ['#f59e0b', '#fbbf24', '#fcd34d', '#fde68a'],
-    save: ['#22c55e', '#4ade80', '#86efac', '#bbf7d0']
-  };
-
-  const createItem = (label, frequency = 'monthly', category = 'needs', assetType = 'checking account') => ({
-    id: `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    label,
-    value: '',
-    frequency,
-    category,
-    assetType,
-    balance: '',
-    minimumPayment: '',
-    interestRate: ''
-  });
-
   const [incomeFields, setIncomeFields] = useState([createItem('Primary Paycheck')]);
   const [assetFields, setAssetFields] = useState([createItem('Primary Account', 'monthly', 'needs', 'checking account')]);
   const [expenseFields, setExpenseFields] = useState([
@@ -36,6 +33,7 @@ function Index() {
     createItem('Insurance')
   ]);
   const [debtFields, setDebtFields] = useState([createItem('Debt 1')]);
+  const [contributionFields, setContributionFields] = useState([]);
   const [editingItemId, setEditingItemId] = useState(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [formCollapsed, setFormCollapsed] = useState(false);
@@ -51,42 +49,37 @@ function Index() {
   const [activeRateField, setActiveRateField] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [showHelpChooser, setShowHelpChooser] = useState(false);
+  const [selectedHelpOptions, setSelectedHelpOptions] = useState([]);
+  const [aboutMe, setAboutMe] = useState({
+    age: '',
+    maritalStatus: 'single',
+    lowestDeductible: '',
+    hasHighDeductiblePlan: false
+  });
 
-  const sanitizeDecimalInput = (rawValue, maxDecimals = 2) => {
-    const value = String(rawValue ?? '').replace(/[^0-9.]/g, '');
-    const parts = value.split('.');
+  useEffect(() => {
+    const contributingAssets = assetFields.filter((asset) => asset.activelyContributing);
 
-    if (parts.length === 1) {
-      return parts[0];
-    }
+    setContributionFields((previous) => {
+      const previousByAssetId = new Map(previous.map((item) => [item.sourceAssetId, item]));
 
-    const whole = parts[0];
-    const decimal = parts.slice(1).join('').slice(0, maxDecimals);
-    return `${whole}.${decimal}`;
-  };
+      return contributingAssets.map((asset, index) => {
+        const existing = previousByAssetId.get(asset.id);
 
-  const parseAmount = (rawValue) => {
-    if (!rawValue) {
-      return 0;
-    }
+        if (existing) {
+          return {
+            ...existing,
+            label: asset.label || `Asset ${index + 1}`,
+            assetType: asset.assetType || 'other'
+          };
+        }
 
-    const normalized = String(rawValue).replace(/[^0-9.-]/g, '');
-    const parsed = Number.parseFloat(normalized);
-
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
-  const getIncomeMultiplier = (frequency) => {
-    if (frequency === 'weekly') {
-      return 52 / 12;
-    }
-
-    if (frequency === 'biweekly') {
-      return 26 / 12;
-    }
-
-    return 1;
-  };
+        return createContributionItem(asset, index);
+      });
+    });
+  }, [assetFields]);
 
   const formatCurrency = (value) => (
     new Intl.NumberFormat('en-US', {
@@ -109,55 +102,6 @@ function Index() {
     }
 
     return `${parseAmount(rawValue).toFixed(2)}%`;
-  };
-
-  const getBudgetStatus = (actual, budget) => {
-    const difference = actual - budget;
-
-    if (Math.abs(difference) < 0.01) {
-      return 'At Budget';
-    }
-
-    return difference > 0 ? 'Over Budget' : 'Under Budget';
-  };
-
-  const formatPayoffTime = (months) => {
-    if (!Number.isFinite(months) || months <= 0) {
-      return 'Paid off';
-    }
-
-    const years = Math.floor(months / 12);
-    const remainingMonths = months % 12;
-
-    if (years === 0) {
-      return `${remainingMonths} month${remainingMonths === 1 ? '' : 's'}`;
-    }
-
-    if (remainingMonths === 0) {
-      return `${years} year${years === 1 ? '' : 's'}`;
-    }
-
-    return `${years} year${years === 1 ? '' : 's'} ${remainingMonths} month${remainingMonths === 1 ? '' : 's'}`;
-  };
-
-  const getPayoffMonthYear = (months) => {
-    const now = new Date();
-    const payoffDate = new Date(now.getFullYear(), now.getMonth() + months, 1);
-
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'long',
-      year: 'numeric'
-    }).format(payoffDate);
-  };
-
-  const getMonthYearFromOffset = (monthsOffset) => {
-    const now = new Date();
-    const targetDate = new Date(now.getFullYear(), now.getMonth() + monthsOffset, 1);
-
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      year: 'numeric'
-    }).format(targetDate);
   };
 
   const payoffData = useMemo(() => {
@@ -431,6 +375,17 @@ function Index() {
       })
       .reduce((sum, expense) => sum + Math.max(parseAmount(expense.value), 0), 0);
 
+    const totalAutoLoanMinimumPayment = debtFields
+      .filter((debt) => (debt.debtType || '').toLowerCase() === 'auto loan')
+      .reduce((sum, debt) => sum + Math.max(parseAmount(debt.minimumPayment), 0), 0);
+
+    const carLimitCheckAmount = totalAutoLoanMinimumPayment > 0
+      ? totalAutoLoanMinimumPayment
+      : totalCarPayment;
+    const carLimitSourceText = totalAutoLoanMinimumPayment > 0
+      ? 'Auto loan minimum payments'
+      : 'Car payment expenses';
+
     const rentLow = monthlyIncome * 0.25;
     const rentHigh = monthlyIncome * 0.33;
     const carLimit = monthlyIncome * 0.08;
@@ -444,24 +399,24 @@ function Index() {
       },
       {
         id: 'checking-needs-band',
-        label: 'Checking accounts should be between 1x and 2x monthly needs.',
-        detail: `${formatCurrency(totalCheckingAccounts)} vs range ${formatCurrency(monthlyNeeds)} - ${formatCurrency(monthlyNeeds * 2)}`,
+        label: 'Checking account balance',
+        detail: `Your checking account should have between 1x and 2x your monthly needs. You have ${formatCurrency(totalCheckingAccounts)}. Recommended: ${formatCurrency(monthlyNeeds)} - ${formatCurrency(monthlyNeeds * 2)}.`,
         passed: totalCheckingAccounts >= monthlyNeeds && totalCheckingAccounts <= (monthlyNeeds * 2)
       },
       {
         id: 'rent-budget-band',
-        label: 'Rent budget should be between 25% and 33% of monthly income.',
-        detail: `${formatCurrency(totalRent)} vs range ${formatCurrency(rentLow)} - ${formatCurrency(rentHigh)}`,
-        passed: totalRent >= rentLow && totalRent <= rentHigh
+        label: 'Rent budget',
+        detail: `Your rent should be between 25% and 33% of your monthly income, or less. Your rent: ${formatCurrency(totalRent)}. Recommended: ${formatCurrency(rentLow)} - ${formatCurrency(rentHigh)} or less.`,
+        passed: totalRent <= rentHigh
       },
       {
         id: 'car-budget-cap',
-        label: 'Car payment budget should be 8% or less of monthly income.',
-        detail: `${formatCurrency(totalCarPayment)} vs max ${formatCurrency(carLimit)}`,
-        passed: totalCarPayment <= carLimit
+        label: 'Car payment budget',
+        detail: `Your car payment should be 8% or less of your monthly income. Your payment: ${formatCurrency(carLimitCheckAmount)}. Recommended: ${formatCurrency(carLimit)} or less.`,
+        passed: carLimitCheckAmount <= carLimit
       }
     ];
-  }, [assetFields, expenseFields, calculationResult]);
+  }, [assetFields, expenseFields, debtFields, calculationResult]);
 
   const updateFieldValue = (setter, values, index, newValue) => {
     const nextValues = [...values];
@@ -517,8 +472,23 @@ function Index() {
     setter(nextValues);
   };
 
+  const updateFieldBooleanByKey = (setter, values, index, key, newValue) => {
+    const nextValues = [...values];
+    nextValues[index] = {
+      ...nextValues[index],
+      [key]: Boolean(newValue)
+    };
+    setter(nextValues);
+  };
+
   const addField = (title, setter, values) => {
     const nextLabel = `${title} ${values.length + 1}`;
+
+    if (title === 'Assets') {
+      setter([...values, createItem(nextLabel, 'monthly', 'needs', 'checking account')]);
+      return;
+    }
+
     setter([...values, createItem(nextLabel)]);
   };
 
@@ -564,7 +534,69 @@ function Index() {
     setDismissedWarnings((previous) => [...previous, warningKey]);
   };
 
-  const inputSteps = [
+  const updateAboutMeField = (key, value) => {
+    setAboutMe((previous) => ({
+      ...previous,
+      [key]: value
+    }));
+  };
+
+  const helpOptions = [
+    'Find my net worth',
+    'Pay off my debt',
+    'Create a budget',
+    'Show me my next financial step',
+    'Help me save for a goal',
+    'I want all of it!'
+  ];
+  const allOptionLabel = 'I want all of it!';
+  const nextStepOptionLabel = 'Show me my next financial step';
+  const netWorthOptionLabel = 'Find my net worth';
+  const debtOptionLabel = 'Pay off my debt';
+  const budgetOptionLabel = 'Create a budget';
+  const saveGoalOptionLabel = 'Help me save for a goal';
+
+  const selectedHelpOptionSet = useMemo(() => new Set(selectedHelpOptions), [selectedHelpOptions]);
+  const wantsAllExperience = selectedHelpOptionSet.has(allOptionLabel) || selectedHelpOptionSet.has(nextStepOptionLabel);
+
+  const enabledInputStepKeys = useMemo(() => {
+    if (wantsAllExperience) {
+      return new Set(ALL_STEP_KEYS);
+    }
+
+    const nextKeys = new Set();
+
+    if (selectedHelpOptionSet.has(netWorthOptionLabel)) {
+      nextKeys.add('assets');
+      nextKeys.add('debt');
+    }
+
+    if (selectedHelpOptionSet.has(debtOptionLabel)) {
+      nextKeys.add('debt');
+    }
+
+    if (selectedHelpOptionSet.has(budgetOptionLabel)) {
+      nextKeys.add('income');
+      nextKeys.add('expenses');
+    }
+
+    if (selectedHelpOptionSet.has(saveGoalOptionLabel)) {
+      nextKeys.add('income');
+    }
+
+    if (nextKeys.size === 0) {
+      nextKeys.add('income');
+    }
+
+    return nextKeys;
+  }, [wantsAllExperience, selectedHelpOptionSet]);
+
+  const showBudgetResults = wantsAllExperience || selectedHelpOptionSet.has(budgetOptionLabel) || selectedHelpOptionSet.has(saveGoalOptionLabel);
+  const showDebtResults = wantsAllExperience || selectedHelpOptionSet.has(debtOptionLabel);
+  const showNetWorthResults = wantsAllExperience || selectedHelpOptionSet.has(netWorthOptionLabel);
+  const showGuidelinesResults = wantsAllExperience;
+
+  const allInputSteps = [
     {
       key: 'income',
       title: 'Income',
@@ -582,6 +614,14 @@ function Index() {
       addText: 'Add Asset'
     },
     {
+      key: 'contributions',
+      title: 'Contributions',
+      values: contributionFields,
+      setter: setContributionFields,
+      prefix: 'contribution',
+      addText: 'Add Contribution'
+    },
+    {
       key: 'expenses',
       title: 'Expenses',
       values: expenseFields,
@@ -596,11 +636,32 @@ function Index() {
       setter: setDebtFields,
       prefix: 'debt',
       addText: 'Add Debt'
+    },
+    {
+      key: 'about-me',
+      title: 'About Me',
+      values: [],
+      setter: () => {},
+      prefix: 'about-me',
+      addText: ''
     }
   ];
 
+  const activeInputSteps = allInputSteps.filter((step) => enabledInputStepKeys.has(step.key));
+  const currentStep = activeInputSteps[activeStep] || activeInputSteps[0] || null;
+
+  useEffect(() => {
+    const maxStepIndex = Math.max(activeInputSteps.length - 1, 0);
+
+    if (activeStep > maxStepIndex) {
+      setActiveStep(maxStepIndex);
+    }
+
+    setMaxUnlockedStep((previous) => Math.min(previous, maxStepIndex));
+  }, [activeInputSteps.length, activeStep]);
+
   const handleNextStep = () => {
-    if (activeStep >= inputSteps.length - 1) {
+    if (activeStep >= activeInputSteps.length - 1) {
       handleCalculate();
       return;
     }
@@ -627,10 +688,17 @@ function Index() {
   };
 
   const handleCalculate = () => {
+    const totalDeductedContributions = contributionFields.reduce((sum, item) => {
+      if (item.deductedFromPay) {
+        return sum + parseAmount(item.monthlyContribution);
+      }
+      return sum;
+    }, 0);
+
     const monthlyIncome = incomeFields.reduce((sum, item) => {
       const amount = parseAmount(item.value);
       return sum + (amount * getIncomeMultiplier(item.frequency));
-    }, 0);
+    }, 0) + totalDeductedContributions;
 
     const totalMinimumDebtPayments = debtFields.reduce((sum, item) => {
       return sum + parseAmount(item.minimumPayment);
@@ -748,9 +816,9 @@ function Index() {
 
     const totalExpenses = categorySummaries.reduce((sum, item) => sum + item.actual, 0);
     const remainingAfterExpenses = monthlyIncome - totalExpenses;
-    const defaultAdditionalPayment = remainingAfterExpenses >= 100
-      ? 100
-      : Math.max(0, Math.floor(remainingAfterExpenses));
+    const addlDebtPaymentSum = expenseFields
+      .filter((item) => item.category === 'save' && item.addlDebtPayment)
+      .reduce((sum, item) => sum + parseAmount(item.value), 0);
 
     setCalculationResult({
       monthlyIncome,
@@ -758,201 +826,146 @@ function Index() {
       categorySummaries,
       warnings
     });
-    setAdditionalDebtPayment(defaultAdditionalPayment);
+    setAdditionalDebtPayment(Math.max(100, addlDebtPaymentSum));
     setPayoffMethod('snowball');
     setRolloverPaidOffMinimums(true);
     setDismissedWarnings([]);
     setSelectedSegment(null);
     setSelectedPayoffPhaseKey(null);
     setSelectedNetWorthSegment(null);
-    setMaxUnlockedStep(inputSteps.length - 1);
+    setMaxUnlockedStep(activeInputSteps.length - 1);
     setFormCollapsed(true);
   };
 
-  const renderColumn = (title, values, setter, inputPrefix, buttonText) => (
-    <section className="finance-column" aria-label={`${title} column`}>
-      <h2>{title}</h2>
-      <div className="field-list">
-        {values.map((item, index) => {
-          const fieldId = `${inputPrefix}-${item.id}`;
+  const handleHelpOptionToggle = (option) => {
+    setSelectedHelpOptions((previous) => {
+      const isSelected = previous.includes(option);
 
-          return (
-            <div className="field-row" key={fieldId}>
-              {editingItemId === item.id ? (
-                <input
-                  type="text"
-                  className="title-edit-input"
-                  value={draftLabel}
-                  onChange={(event) => setDraftLabel(event.target.value)}
-                  onBlur={() => saveEditingLabel(setter, values, index)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      saveEditingLabel(setter, values, index);
-                    }
+      if (option === allOptionLabel) {
+        return isSelected ? [] : [allOptionLabel];
+      }
 
-                    if (event.key === 'Escape') {
-                      cancelEditingLabel();
-                    }
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="item-title-btn"
-                  onClick={() => startEditingLabel(item)}
-                  aria-label={`Edit ${item.label} title`}
-                >
-                  {item.label}
-                </button>
-              )}
-              <div className="field-controls">
-                {title === 'Debt' ? (
-                  <div className="debt-controls" aria-label={`${item.label} details`}>
-                    <input
-                      id={`${fieldId}-balance`}
-                      type="text"
-                      inputMode="decimal"
-                      value={activeAmountField === `${fieldId}-balance` ? (item.balance || '') : formatCurrencyDisplay(item.balance)}
-                      placeholder="Balance"
-                      onFocus={() => setActiveAmountField(`${fieldId}-balance`)}
-                      onBlur={() => setActiveAmountField(null)}
-                      onChange={(event) => updateFieldAmountByKey(setter, values, index, 'balance', event.target.value)}
-                    />
-                    <input
-                      id={`${fieldId}-minimum`}
-                      type="text"
-                      inputMode="decimal"
-                      value={activeAmountField === `${fieldId}-minimum` ? (item.minimumPayment || '') : formatCurrencyDisplay(item.minimumPayment)}
-                      placeholder="Min monthly payment"
-                      onFocus={() => setActiveAmountField(`${fieldId}-minimum`)}
-                      onBlur={() => setActiveAmountField(null)}
-                      onChange={(event) => updateFieldAmountByKey(setter, values, index, 'minimumPayment', event.target.value)}
-                    />
-                    <input
-                      id={`${fieldId}-interest`}
-                      type="text"
-                      inputMode="decimal"
-                      value={activeRateField === `${fieldId}-interest` ? (item.interestRate || '') : formatPercentDisplay(item.interestRate)}
-                      placeholder="Interest rate %"
-                      onFocus={() => setActiveRateField(`${fieldId}-interest`)}
-                      onBlur={() => setActiveRateField(null)}
-                      onChange={(event) => updateDebtField(setter, values, index, 'interestRate', sanitizeDecimalInput(event.target.value))}
-                    />
-                  </div>
-                ) : (
-                  <input
-                    id={fieldId}
-                    type="text"
-                    inputMode="decimal"
-                    value={activeAmountField === fieldId ? item.value : formatCurrencyDisplay(item.value)}
-                    placeholder={`Enter ${item.label.toLowerCase()} amount`}
-                    onFocus={() => setActiveAmountField(fieldId)}
-                    onBlur={() => setActiveAmountField(null)}
-                    onChange={(event) => updateFieldValue(setter, values, index, event.target.value)}
-                  />
-                )}
-                {title === 'Income' && (
-                  <select
-                    className="frequency-select"
-                    value={item.frequency || 'monthly'}
-                    onChange={(event) => updateFieldFrequency(setter, values, index, event.target.value)}
-                    aria-label={`${item.label} frequency`}
-                  >
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Biweekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                )}
-                {title === 'Expenses' && (
-                  <select
-                    className="frequency-select"
-                    value={item.category || 'needs'}
-                    onChange={(event) => updateFieldCategory(setter, values, index, event.target.value)}
-                    aria-label={`${item.label} category`}
-                  >
-                    <option value="needs">Needs</option>
-                    <option value="wants">Wants</option>
-                    <option value="save">Save</option>
-                  </select>
-                )}
-                {title === 'Assets' && (
-                  <select
-                    className="frequency-select"
-                    value={item.assetType || 'checking account'}
-                    onChange={(event) => updateAssetType(setter, values, index, event.target.value)}
-                    aria-label={`${item.label} asset type`}
-                  >
-                    <option value="checking account">Checking account</option>
-                    <option value="savings account">Savings account</option>
-                    <option value="retirement account">Retirement account</option>
-                    <option value="investment account">Investment account</option>
-                    <option value="other">Other</option>
-                  </select>
-                )}
-                <button
-                  type="button"
-                  className="remove-field-btn"
-                  onClick={() => removeField(setter, values, index)}
-                  disabled={values.length === 1}
-                  aria-label={`Remove ${item.label}`}
-                  title={`Remove ${item.label}`}
-                >
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        className="add-field-btn"
-        onClick={() => addField(title, setter, values)}
-      >
-        {buttonText}
-      </button>
-    </section>
-  );
+      if (previous.includes(allOptionLabel)) {
+        return [option];
+      }
+
+      if (isSelected) {
+        return previous.filter((item) => item !== option);
+      }
+
+      return [...previous, option];
+    });
+  };
+
+  const handleHelpChooserContinue = () => {
+    if (selectedHelpOptions.length === 0) {
+      return;
+    }
+
+    setActiveStep(0);
+    setMaxUnlockedStep(0);
+    setHasStarted(true);
+    setShowHelpChooser(false);
+  };
 
   return (
-    <div className="finance-page">
-      <h1 className="page-title">Monthly Money Tracker</h1>
-      <p className="page-subtitle">Add your information below and hit calculate when you are ready.</p>
+    <div className="finance-page relative overflow-hidden bg-gradient-to-br from-[#0f2f1a] via-[#2f6a2e] to-[#56a046] text-slate-50">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(220,255,220,0.2),transparent_42%),radial-gradient(circle_at_80%_10%,rgba(134,239,172,0.28),transparent_35%),radial-gradient(circle_at_50%_85%,rgba(34,197,94,0.24),transparent_50%)]" />
 
-      {!formCollapsed && (
+      <OnboardingScreens
+        hasStarted={hasStarted}
+        showHelpChooser={showHelpChooser}
+        setShowHelpChooser={setShowHelpChooser}
+        selectedHelpOptions={selectedHelpOptions}
+        helpOptions={helpOptions}
+        allOptionLabel={allOptionLabel}
+        handleHelpOptionToggle={handleHelpOptionToggle}
+        handleHelpChooserContinue={handleHelpChooserContinue}
+      />
+
+      {hasStarted && !formCollapsed && (
         <>
-          <div className="stepper-breadcrumb" aria-label="Input steps">
-            {inputSteps.map((step, index) => {
-              const isCurrent = index === activeStep;
-              const isUnlocked = index <= maxUnlockedStep;
+          <nav className="stepper-breadcrumb stepper-line" aria-label="Input steps">
+            <ol>
+              {activeInputSteps.map((step, index) => {
+                const isCurrent = index === activeStep;
+                const isUnlocked = index <= maxUnlockedStep;
+                return (
+                  <li key={step.key} className="stepper-step">
+                    <button
+                      type="button"
+                      className={`step-dot ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : 'locked'}`}
+                      onClick={() => handleStepDotClick(index)}
+                      disabled={!isUnlocked}
+                      aria-label={`Go to ${step.title}`}
+                    >
+                      <span>{index + 1}</span>
+                    </button>
+                    <div className="step-title-link-wrapper">
+                      <button
+                        type="button"
+                        className={`step-title-link ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : 'locked'}`}
+                        onClick={() => handleStepDotClick(index)}
+                        disabled={!isUnlocked}
+                        aria-label={`Go to ${step.title}`}
+                      >
+                        {step.title}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
 
-              return (
-                <button
-                  key={step.key}
-                  type="button"
-                  className={`step-dot ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : 'locked'}`}
-                  onClick={() => handleStepDotClick(index)}
-                  disabled={!isUnlocked}
-                  aria-label={`Go to ${step.title}`}
-                >
-                  <span>{index + 1}</span>
-                  <small>{step.title}</small>
-                </button>
-              );
-            })}
+          <div className="stepper-stage relative">
+            <div key={currentStep ? currentStep.key : 'no-step'} className="step-stage-card">
+              {currentStep && currentStep.key === 'about-me'
+                ? (
+                  <AboutMeColumn
+                    aboutMe={aboutMe}
+                    updateAboutMeField={updateAboutMeField}
+                    activeAmountField={activeAmountField}
+                    setActiveAmountField={setActiveAmountField}
+                    formatCurrencyDisplay={formatCurrencyDisplay}
+                    sanitizeDecimalInput={sanitizeDecimalInput}
+                  />
+                )
+                : (currentStep && (
+                  <FinanceInputColumn
+                    title={currentStep.title}
+                    values={currentStep.values}
+                    setter={currentStep.setter}
+                    inputPrefix={currentStep.prefix}
+                    buttonText={currentStep.addText}
+                    editingItemId={editingItemId}
+                    draftLabel={draftLabel}
+                    setDraftLabel={setDraftLabel}
+                    saveEditingLabel={saveEditingLabel}
+                    cancelEditingLabel={cancelEditingLabel}
+                    startEditingLabel={startEditingLabel}
+                    activeAmountField={activeAmountField}
+                    setActiveAmountField={setActiveAmountField}
+                    activeRateField={activeRateField}
+                    setActiveRateField={setActiveRateField}
+                    formatCurrencyDisplay={formatCurrencyDisplay}
+                    formatPercentDisplay={formatPercentDisplay}
+                    updateFieldAmountByKey={updateFieldAmountByKey}
+                    updateDebtField={updateDebtField}
+                    sanitizeDecimalInput={sanitizeDecimalInput}
+                    updateFieldValue={updateFieldValue}
+                    updateFieldFrequency={updateFieldFrequency}
+                    updateFieldCategory={updateFieldCategory}
+                    updateAssetType={updateAssetType}
+                    updateFieldBooleanByKey={updateFieldBooleanByKey}
+                    removeField={removeField}
+                    addField={addField}
+                  />
+                ))}
+            </div>
           </div>
 
-          <div className="stepper-stage">
-            {renderColumn(
-              inputSteps[activeStep].title,
-              inputSteps[activeStep].values,
-              inputSteps[activeStep].setter,
-              inputSteps[activeStep].prefix,
-              inputSteps[activeStep].addText
-            )}
-          </div>
-
-          <div className={`stepper-actions ${activeStep === 0 ? 'single-action' : ''}`}>
+          <div className={`stepper-actions relative ${activeStep === 0 ? 'single-action' : ''}`}>
             {activeStep > 0 && (
               <button
                 type="button"
@@ -967,362 +980,51 @@ function Index() {
               className="calculate-btn"
               onClick={handleNextStep}
             >
-              {activeStep === inputSteps.length - 1 ? 'Calculate' : 'Next'}
+              {activeStep === activeInputSteps.length - 1 ? 'Calculate' : 'Next'}
             </button>
           </div>
         </>
       )}
 
-      {formCollapsed && calculationResult && (
-        <section className="results-panel" aria-label="Budget results">
-          <div className="results-header">
-            <h2>Budget Breakdown</h2>
-            <button
-              type="button"
-              className="add-field-btn"
-              onClick={() => {
-                setFormCollapsed(false);
-                setActiveStep(inputSteps.length - 1);
-                setMaxUnlockedStep(inputSteps.length - 1);
-              }}
-            >
-              Edit Inputs
-            </button>
-          </div>
-
-          {calculationResult.warnings && calculationResult.warnings.length > 0 && (
-            <div className="warning-banner-stack" role="alert" aria-live="polite">
-              {calculationResult.warnings
-                .map((warning, index) => ({ warning, warningKey: `${index}-${warning}` }))
-                .filter((item) => !dismissedWarnings.includes(item.warningKey))
-                .map((item) => (
-                  <div key={item.warningKey} className="warning-banner">
-                    <span>{item.warning}</span>
-                    <button
-                      type="button"
-                      className="warning-close-btn"
-                      onClick={() => dismissWarning(item.warningKey)}
-                      aria-label="Dismiss warning"
-                    >
-                      x
-                    </button>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          <div className="summary-metrics">
-            <div className="metric-card">
-              <p>Monthly Income</p>
-              <strong>{formatCurrency(calculationResult.monthlyIncome)}</strong>
-            </div>
-            <div className="metric-card">
-              <p>Total Expenses</p>
-              <strong>{formatCurrency(calculationResult.totalExpenses)}</strong>
-            </div>
-          </div>
-
-          <div className="budget-grid">
-            {calculationResult.categorySummaries.map((item) => (
-              <article className="budget-card" key={item.category}>
-                <h3>{item.label}</h3>
-                <p>Budget: {formatCurrency(item.budget)}</p>
-                <p>Spent: {formatCurrency(item.actual)}</p>
-                <p className={`budget-status ${item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}`}>
-                  {item.status}
-                </p>
-              </article>
-            ))}
-          </div>
-
-          <div className="chart-wrap" aria-label="Expense category budget bars">
-            <h3>Category Budget Bars (Click segments for item details)</h3>
-            <div className="category-bars">
-              {calculationResult.categorySummaries.map((item) => (
-                <div className="category-bar-card" key={item.category}>
-                  <div className="category-bar-header">
-                    <strong>{item.label}</strong>
-                    <span>{formatCurrency(item.actual)} / {formatCurrency(item.budget)}</span>
-                  </div>
-                  <div className="category-budget-bar" title={`${item.label} budget cap: ${formatCurrency(item.budget)}`}>
-                    {item.itemSegments.map((segment) => (
-                      <div
-                        key={`${item.category}-${segment.id}`}
-                        className="expense-segment"
-                        style={{
-                          width: `${segment.widthPercent}%`,
-                          backgroundColor: segment.color
-                        }}
-                        onClick={() => setSelectedSegment((current) => {
-                          if (current && current.category === item.category && current.segmentId === segment.id) {
-                            return null;
-                          }
-
-                          return {
-                            category: item.category,
-                            segmentId: segment.id,
-                            label: segment.label,
-                            amount: segment.amount
-                          };
-                        })}
-                        title={segment.hoverText}
-                        aria-label={segment.hoverText}
-                      />
-                    ))}
-                  </div>
-                  <div className="category-bar-meta">
-                    <span className={`budget-status ${
-                      item.category === 'save'
-                        ? (item.status === 'Under Budget' ? 'status-over' : item.status === 'Over Budget' ? 'status-under' : 'status-at')
-                        : (item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at')
-                    }`}>
-                      {item.status}
-                    </span>
-                    {item.difference > 0 && (
-                      <span className="overflow-note">Over by {formatCurrency(item.difference)}</span>
-                    )}
-                    {item.itemSegments.length === 0 && (
-                      <span className="overflow-note">No expenses entered</span>
-                    )}
-                    {selectedSegment && selectedSegment.category === item.category && (
-                      <div className="segment-click-popover" role="status" aria-live="polite">
-                        <strong>{selectedSegment.label}</strong>
-                        <span>{formatCurrency(selectedSegment.amount)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <section className="debt-timeline" aria-label="Debt payoff timeline">
-            <div className="debt-timeline-header">
-              <h3>Debt Payoff Timeline</h3>
-              <div className="payoff-method-toggle" role="group" aria-label="Payoff method">
-                <button
-                  type="button"
-                  className={`method-btn ${payoffMethod === 'snowball' ? 'active' : ''}`}
-                  onClick={() => setPayoffMethod('snowball')}
-                >
-                  Snowball
-                </button>
-                <button
-                  type="button"
-                  className={`method-btn ${payoffMethod === 'avalanche' ? 'active' : ''}`}
-                  onClick={() => setPayoffMethod('avalanche')}
-                >
-                  Avalanche
-                </button>
-              </div>
-            </div>
-
-            {totalDebtPayoffSummary && (
-              <div className="debt-timeline-summary">
-                <div className="timeline-summary-card">
-                  <p>Total debt payoff time</p>
-                  <strong>{totalDebtPayoffSummary.totalTime}</strong>
-                </div>
-                <div className="timeline-summary-card">
-                  <p>Estimated debt-free month</p>
-                  <strong>{totalDebtPayoffSummary.paidOffBy}</strong>
-                </div>
-              </div>
-            )}
-
-            <div className="extra-payment-controls">
-              <label htmlFor="extra-debt-payment">Additional monthly debt payment</label>
-              <div className="extra-payment-inputs">
-                <input
-                  id="extra-debt-payment"
-                  type="range"
-                  min="0"
-                  max={maxAdditionalDebtPayment}
-                  step="10"
-                  value={Math.min(additionalDebtPayment, maxAdditionalDebtPayment)}
-                  onChange={(event) => setAdditionalDebtPayment(parseAmount(event.target.value))}
-                  disabled={maxAdditionalDebtPayment === 0}
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max={maxAdditionalDebtPayment}
-                  step="10"
-                  value={Math.min(additionalDebtPayment, maxAdditionalDebtPayment)}
-                  onChange={(event) => {
-                    const nextValue = parseAmount(event.target.value);
-                    setAdditionalDebtPayment(Math.min(nextValue, maxAdditionalDebtPayment));
-                  }}
-                />
-              </div>
-              <label className="rollover-toggle">
-                <input
-                  type="checkbox"
-                  checked={rolloverPaidOffMinimums}
-                  onChange={(event) => setRolloverPaidOffMinimums(event.target.checked)}
-                />
-                Add paid-off debt minimum payments to extra payment
-              </label>
-            </div>
-
-            <div className="debt-timeline-list">
-              {payoffTimeline.length === 0 && (
-                <p className="empty-debt-state">Add debt balances to see estimated payoff timelines.</p>
-              )}
-              {payoffTimeline.map((debt) => (
-                <article key={debt.id} className="debt-timeline-item">
-                  <div>
-                    <strong>{debt.label}</strong>
-                    <p>
-                      Balance {formatCurrency(debt.balance)} | Min {formatCurrency(debt.minimumPayment)} | APR {debt.annualRate.toFixed(2)}%
-                    </p>
-                  </div>
-                  <span className="payoff-time-badge">{debt.payoffText}</span>
-                </article>
-              ))}
-            </div>
-
-            <div className="payoff-phase-wrap">
-              <h4>Payoff Timeline</h4>
-              <div className="payoff-phase-labels">
-                <span>{payoffTimelineStartLabel}</span>
-                <span>{payoffTimelineEndLabel}</span>
-              </div>
-              <div className="payoff-phase-bar" aria-label="Debt payoff phase timeline">
-                {payoffPhases.map((phase) => (
-                  <button
-                    key={phase.key}
-                    type="button"
-                    className={`payoff-phase-segment ${selectedPayoffPhaseKey === phase.key ? 'selected' : ''}`}
-                    style={{ width: `${phase.widthPercent}%` }}
-                    onClick={() => setSelectedPayoffPhaseKey(phase.key)}
-                    title={`${phase.targetDebtLabel} from month ${phase.startMonth} to ${phase.endMonth}`}
-                  />
-                ))}
-              </div>
-              {payoffPhases.length === 0 && (
-                <p className="empty-debt-state">No payoff phases to display yet.</p>
-              )}
-              {(() => {
-                const activePhase = payoffPhases.find((phase) => phase.key === selectedPayoffPhaseKey) || payoffPhases[0];
-
-                if (!activePhase) {
-                  return null;
-                }
-
-                return (
-                  <div className="payoff-phase-detail" role="status" aria-live="polite">
-                    <strong>{activePhase.targetDebtLabel}</strong>
-                    <span>Months {activePhase.startMonth} - {activePhase.endMonth}</span>
-                    <span>Payment: {formatCurrency(activePhase.minimumPayment)} + {formatCurrency(activePhase.averageExtraPayment)}</span>
-                    <span>Interest rate: {activePhase.annualRate.toFixed(2)}%</span>
-                  </div>
-                );
-              })()}
-            </div>
-          </section>
-
-          <section className="net-worth" aria-label="Net worth summary">
-            <div className="net-worth-header">
-              <h3>Net Worth</h3>
-              <strong>{formatCurrency(netWorthData.netWorth)}</strong>
-            </div>
-            <div className="net-worth-bars">
-              <div className="net-worth-row">
-                <div className="net-worth-row-header">
-                  <span>Assets</span>
-                  <span>{formatCurrency(netWorthData.totalAssets)}</span>
-                </div>
-                <div className="net-worth-bar assets-bar">
-                  <div className="net-worth-bar-fill" style={{ width: `${netWorthData.scalePercentAssets}%` }}>
-                    {netWorthData.assets.map((asset, index) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        className={`net-worth-segment ${selectedNetWorthSegment && selectedNetWorthSegment.type === 'asset' && selectedNetWorthSegment.id === asset.id ? 'selected' : ''}`}
-                        style={{
-                          width: `${asset.widthPercent}%`,
-                          backgroundColor: segmentPalette.needs[index % segmentPalette.needs.length]
-                        }}
-                        onClick={() => setSelectedNetWorthSegment({ type: 'asset', id: asset.id })}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="net-worth-row">
-                <div className="net-worth-row-header">
-                  <span>Debts</span>
-                  <span>{formatCurrency(netWorthData.totalDebts)}</span>
-                </div>
-                <div className="net-worth-bar debts-bar">
-                  <div className="net-worth-bar-fill" style={{ width: `${netWorthData.scalePercentDebts}%` }}>
-                    {netWorthData.debts.map((debt, index) => (
-                      <button
-                        key={debt.id}
-                        type="button"
-                        className={`net-worth-segment ${selectedNetWorthSegment && selectedNetWorthSegment.type === 'debt' && selectedNetWorthSegment.id === debt.id ? 'selected' : ''}`}
-                        style={{
-                          width: `${debt.widthPercent}%`,
-                          backgroundColor: segmentPalette.wants[index % segmentPalette.wants.length]
-                        }}
-                        onClick={() => setSelectedNetWorthSegment({ type: 'debt', id: debt.id })}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {(() => {
-              if (!selectedNetWorthSegment) {
-                return null;
-              }
-
-              if (selectedNetWorthSegment.type === 'asset') {
-                const asset = netWorthData.assets.find((entry) => entry.id === selectedNetWorthSegment.id);
-                if (!asset) {
-                  return null;
-                }
-
-                return (
-                  <div className="net-worth-detail" role="status" aria-live="polite">
-                    <strong>{asset.label}</strong>
-                    <span>Type: {asset.type}</span>
-                    <span>Amount: {formatCurrency(asset.amount)}</span>
-                  </div>
-                );
-              }
-
-              const debt = netWorthData.debts.find((entry) => entry.id === selectedNetWorthSegment.id);
-              if (!debt) {
-                return null;
-              }
-
-              return (
-                <div className="net-worth-detail" role="status" aria-live="polite">
-                  <strong>{debt.label}</strong>
-                  <span>Balance: {formatCurrency(debt.amount)}</span>
-                  <span>Min payment: {formatCurrency(debt.minimumPayment)}</span>
-                  <span>Interest rate: {debt.annualRate.toFixed(2)}%</span>
-                </div>
-              );
-            })()}
-          </section>
-
-          <section className="guidelines" aria-label="Guidelines and limits">
-            <h3>Guidelines and Limits</h3>
-            <div className="guideline-list">
-              {guidelines.map((rule) => (
-                <article key={rule.id} className={`guideline-item ${rule.passed ? 'pass' : 'fail'}`}>
-                  <strong>{rule.label}</strong>
-                  <span>{rule.detail}</span>
-                </article>
-              ))}
-            </div>
-          </section>
-        </section>
+      {hasStarted && formCollapsed && calculationResult && (
+        <ResultsPanel
+          calculationResult={calculationResult}
+          showBudgetResults={showBudgetResults}
+          showDebtResults={showDebtResults}
+          showNetWorthResults={showNetWorthResults}
+          showGuidelinesResults={showGuidelinesResults}
+          dismissedWarnings={dismissedWarnings}
+          dismissWarning={dismissWarning}
+          formatCurrency={formatCurrency}
+          selectedSegment={selectedSegment}
+          setSelectedSegment={setSelectedSegment}
+          payoffMethod={payoffMethod}
+          setPayoffMethod={setPayoffMethod}
+          totalDebtPayoffSummary={totalDebtPayoffSummary}
+          maxAdditionalDebtPayment={maxAdditionalDebtPayment}
+          additionalDebtPayment={additionalDebtPayment}
+          setAdditionalDebtPayment={setAdditionalDebtPayment}
+          parseAmount={parseAmount}
+          rolloverPaidOffMinimums={rolloverPaidOffMinimums}
+          setRolloverPaidOffMinimums={setRolloverPaidOffMinimums}
+          payoffTimeline={payoffTimeline}
+          payoffTimelineStartLabel={payoffTimelineStartLabel}
+          payoffTimelineEndLabel={payoffTimelineEndLabel}
+          payoffPhases={payoffPhases}
+          selectedPayoffPhaseKey={selectedPayoffPhaseKey}
+          setSelectedPayoffPhaseKey={setSelectedPayoffPhaseKey}
+          netWorthData={netWorthData}
+          selectedNetWorthSegment={selectedNetWorthSegment}
+          setSelectedNetWorthSegment={setSelectedNetWorthSegment}
+          segmentPalette={segmentPalette}
+          guidelines={guidelines}
+          onEditInputs={() => {
+            setFormCollapsed(false);
+            const maxStepIndex = Math.max(activeInputSteps.length - 1, 0);
+            setActiveStep(maxStepIndex);
+            setMaxUnlockedStep(maxStepIndex);
+          }}
+        />
       )}
     </div>
   );
