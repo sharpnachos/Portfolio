@@ -20,6 +20,7 @@ function FinanceInputColumn({
   formatPercentDisplay,
   updateFieldAmountByKey,
   updateDebtField,
+  updateAssetField,
   sanitizeDecimalInput,
   updateFieldValue,
   updateFieldFrequency,
@@ -68,6 +69,9 @@ function FinanceInputColumn({
                   className="item-title-btn"
                   onClick={() => startEditingLabel(item)}
                   aria-label={`Edit ${item.label} title`}
+                  disabled={item.isDebtPayment}
+                  title={item.isDebtPayment ? 'Debt payment name is set from the Debt page' : 'Click to edit'}
+                  style={item.isDebtPayment ? { cursor: 'default', opacity: 0.7 } : {}}
                 >
                   {item.label}
                 </button>
@@ -130,12 +134,14 @@ function FinanceInputColumn({
                     onFocus={() => setActiveAmountField(fieldId)}
                     onBlur={() => setActiveAmountField(null)}
                     onChange={(event) => updateFieldValue(setter, values, index, event.target.value)}
+                    disabled={item.isDebtPayment}
+                    title={item.isDebtPayment ? 'Debt payment amount is set from the Debt page' : ''}
                   />
                 ) : null}
                 {title === 'Income' && (
                   <select
                     className="frequency-select"
-                    value={item.frequency || 'monthly'}
+                    value={item.frequency || 'biweekly'}
                     onChange={(event) => updateFieldFrequency(setter, values, index, event.target.value)}
                     aria-label={`${item.label} frequency`}
                   >
@@ -150,6 +156,8 @@ function FinanceInputColumn({
                     value={item.category || 'needs'}
                     onChange={(event) => updateFieldCategory(setter, values, index, event.target.value)}
                     aria-label={`${item.label} category`}
+                    disabled={item.isDebtPayment}
+                    title={item.isDebtPayment ? 'Debt payments are always in the Needs category' : ''}
                   >
                     <option value="needs">Needs</option>
                     <option value="wants">Wants</option>
@@ -168,6 +176,20 @@ function FinanceInputColumn({
                       Addl. debt payment?
                     </label>
                   </div>
+                )}
+                {title === 'Assets' && (item.assetType || '').toLowerCase() === 'savings account' && (
+                  <input
+                    id={`${fieldId}-interest`}
+                    type="text"
+                    inputMode="decimal"
+                    className="interest-rate-input"
+                    value={activeRateField === `${fieldId}-interest` ? (item.interestRate || '') : formatPercentDisplay(item.interestRate)}
+                    placeholder="Interest %"
+                    onFocus={() => setActiveRateField(`${fieldId}-interest`)}
+                    onBlur={() => setActiveRateField(null)}
+                    onChange={(event) => updateAssetField(setter, values, index, 'interestRate', sanitizeDecimalInput(event.target.value))}
+                    aria-label={`${item.label} interest rate`}
+                  />
                 )}
                 {title === 'Assets' && (
                   <select
@@ -204,11 +226,21 @@ function FinanceInputColumn({
                       type="text"
                       inputMode="decimal"
                       value={activeAmountField === `${fieldId}-monthly` ? (item.monthlyContribution || '') : formatCurrencyDisplay(item.monthlyContribution)}
-                      placeholder="Monthly contribution"
+                      placeholder="Contribution amount"
                       onFocus={() => setActiveAmountField(`${fieldId}-monthly`)}
                       onBlur={() => setActiveAmountField(null)}
                       onChange={(event) => updateFieldAmountByKey(setter, values, index, 'monthlyContribution', event.target.value)}
                     />
+                    <select
+                      className="frequency-select"
+                      value={item.frequency || 'monthly'}
+                      onChange={(event) => updateFieldFrequency(setter, values, index, event.target.value)}
+                      aria-label={`${item.label} contribution frequency`}
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Biweekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
                     <label className="inline-checkbox" htmlFor={`${fieldId}-deducted-from-pay`}>
                       <input
                         id={`${fieldId}-deducted-from-pay`}
@@ -243,7 +275,7 @@ function FinanceInputColumn({
                     )}
                   </div>
                 )}
-                {title !== 'Contributions' && (
+                {title !== 'Contributions' && !item.isDebtPayment && (
                   <button
                     type="button"
                     className="remove-field-btn"

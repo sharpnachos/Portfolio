@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 function ResultsPanel({
   calculationResult,
@@ -6,6 +6,7 @@ function ResultsPanel({
   showDebtResults,
   showNetWorthResults,
   showGuidelinesResults,
+  showRetirementResults,
   dismissedWarnings,
   dismissWarning,
   formatCurrency,
@@ -31,12 +32,46 @@ function ResultsPanel({
   setSelectedNetWorthSegment,
   segmentPalette,
   guidelines,
+  retirementRateOfReturn,
+  setRetirementRateOfReturn,
   onEditInputs
 }) {
+  // Multi-step navigation state
+  const [activeResultStep, setActiveResultStep] = useState(0);
+
+  // Define steps based on what should be shown
+  const steps = [];
+  if (showBudgetResults) steps.push({ key: 'budget', label: 'Budget' });
+  if (showDebtResults) steps.push({ key: 'debt', label: 'Debt Payoff' });
+  if (showNetWorthResults) steps.push({ key: 'networth', label: 'Net Worth' });
+  if (showRetirementResults) steps.push({ key: 'retirement', label: 'Retirement' });
+  if (showGuidelinesResults) steps.push({ key: 'guidelines', label: 'Guidelines' });
+  steps.push({ key: 'dashboard', label: 'Dashboard' });
+
+  const currentStep = steps[activeResultStep];
+  const isFirstStep = activeResultStep === 0;
+  const isLastStep = activeResultStep === steps.length - 1;
+
+  const handleNext = () => {
+    if (!isLastStep) {
+      setActiveResultStep(activeResultStep + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (!isFirstStep) {
+      setActiveResultStep(activeResultStep - 1);
+    }
+  };
+
+  const handleJumpToStep = (index) => {
+    setActiveResultStep(index);
+  };
+
   return (
-    <section className="results-panel relative rounded-2xl border border-emerald-100/80 bg-white/92 shadow-glow backdrop-blur-sm" aria-label="Budget results">
+    <section className="results-panel relative rounded-2xl border border-emerald-100/80 bg-white/92 shadow-glow backdrop-blur-sm" aria-label="Results">
       <div className="results-header">
-        <h2>Budget Breakdown</h2>
+        <h2>{currentStep?.label || 'Results'}</h2>
         <button
           type="button"
           className="add-field-btn"
@@ -46,120 +81,172 @@ function ResultsPanel({
         </button>
       </div>
 
-      {showBudgetResults && calculationResult.warnings && calculationResult.warnings.length > 0 && (
-        <div className="warning-banner-stack" role="alert" aria-live="polite">
-          {calculationResult.warnings
-            .map((warning, index) => ({ warning, warningKey: `${index}-${warning}` }))
-            .filter((item) => !dismissedWarnings.includes(item.warningKey))
-            .map((item) => (
-              <div key={item.warningKey} className="warning-banner">
-                <span>{item.warning}</span>
-                <button
-                  type="button"
-                  className="warning-close-btn"
-                  onClick={() => dismissWarning(item.warningKey)}
-                  aria-label="Dismiss warning"
-                >
-                  x
-                </button>
-              </div>
-            ))}
-        </div>
-      )}
+      {/* Step indicator */}
+      <div className="results-stepper" role="navigation" aria-label="Results sections">
+        {steps.map((step, index) => (
+          <button
+            key={step.key}
+            type="button"
+            className={`results-step-btn ${index === activeResultStep ? 'active' : ''} ${index < activeResultStep ? 'completed' : ''}`}
+            onClick={() => handleJumpToStep(index)}
+          >
+            {step.label}
+          </button>
+        ))}
+      </div>
 
-      {showBudgetResults && (
-        <div className="summary-metrics">
-          <div className="metric-card">
-            <p>Monthly Income</p>
-            <strong>{formatCurrency(calculationResult.monthlyIncome)}</strong>
+      {/* Budget Results Step */}
+      {currentStep?.key === 'budget' && (
+        <>
+          {calculationResult.warnings && calculationResult.warnings.length > 0 && (
+            <div className="warning-banner-stack" role="alert" aria-live="polite">
+              {calculationResult.warnings
+                .map((warning, index) => ({ warning, warningKey: `${index}-${warning}` }))
+                .filter((item) => !dismissedWarnings.includes(item.warningKey))
+                .map((item) => (
+                  <div key={item.warningKey} className="warning-banner">
+                    <svg className="warning-banner-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span className="warning-banner-content">{item.warning}</span>
+                    <button
+                      type="button"
+                      className="warning-close-btn"
+                      onClick={() => dismissWarning(item.warningKey)}
+                      aria-label="Dismiss warning"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          <div className="summary-metrics">
+            <div className="metric-card">
+              <p>Monthly Income</p>
+              <strong>{formatCurrency(calculationResult.monthlyIncome)}</strong>
+            </div>
+            <div className="metric-card">
+              <p>Total Expenses</p>
+              <strong>{formatCurrency(calculationResult.totalExpenses)}</strong>
+            </div>
           </div>
-          <div className="metric-card">
-            <p>Total Expenses</p>
-            <strong>{formatCurrency(calculationResult.totalExpenses)}</strong>
-          </div>
-        </div>
-      )}
 
-      {showBudgetResults && (
-        <div className="budget-grid">
-          {calculationResult.categorySummaries.map((item) => (
-            <article className="budget-card" key={item.category}>
-              <h3>{item.label}</h3>
-              <p>Budget: {formatCurrency(item.budget)}</p>
-              <p>Spent: {formatCurrency(item.actual)}</p>
-              <p className={`budget-status ${item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}`}>
-                {item.status}
-              </p>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {showBudgetResults && (
-        <div className="chart-wrap" aria-label="Expense category budget bars">
-          <h3>Category Budget Bars (Click segments for item details)</h3>
-          <div className="category-bars">
+          <div className="budget-grid">
             {calculationResult.categorySummaries.map((item) => (
-              <div className="category-bar-card" key={item.category}>
-                <div className="category-bar-header">
-                  <strong>{item.label}</strong>
-                  <span>{formatCurrency(item.actual)} / {formatCurrency(item.budget)}</span>
-                </div>
-                <div className="category-budget-bar" title={`${item.label} budget cap: ${formatCurrency(item.budget)}`}>
-                  {item.itemSegments.map((segment) => (
-                    <div
-                      key={`${item.category}-${segment.id}`}
-                      className="expense-segment"
-                      style={{
-                        width: `${segment.widthPercent}%`,
-                        backgroundColor: segment.color
-                      }}
-                      onClick={() => setSelectedSegment((current) => {
-                        if (current && current.category === item.category && current.segmentId === segment.id) {
-                          return null;
-                        }
-
-                        return {
-                          category: item.category,
-                          segmentId: segment.id,
-                          label: segment.label,
-                          amount: segment.amount
-                        };
-                      })}
-                      title={segment.hoverText}
-                      aria-label={segment.hoverText}
-                    />
-                  ))}
-                </div>
-                <div className="category-bar-meta">
-                  <span className={`budget-status ${
-                    item.category === 'save'
-                      ? (item.status === 'Under Budget' ? 'status-over' : item.status === 'Over Budget' ? 'status-under' : 'status-at')
-                      : (item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at')
-                  }`}>
-                    {item.status}
-                  </span>
-                  {item.difference > 0 && (
-                    <span className="overflow-note">Over by {formatCurrency(item.difference)}</span>
-                  )}
-                  {item.itemSegments.length === 0 && (
-                    <span className="overflow-note">No expenses entered</span>
-                  )}
-                  {selectedSegment && selectedSegment.category === item.category && (
-                    <div className="segment-click-popover" role="status" aria-live="polite">
-                      <strong>{selectedSegment.label}</strong>
-                      <span>{formatCurrency(selectedSegment.amount)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <article className="budget-card" key={item.category}>
+                <h3>{item.label}</h3>
+                <p>Budget: {formatCurrency(item.budget)}</p>
+                <p>Spent: {formatCurrency(item.actual)}</p>
+                <p className={`budget-status ${item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}`}>
+                  {item.status}
+                </p>
+              </article>
             ))}
           </div>
-        </div>
+
+          <div className="chart-wrap" aria-label="Expense category budget bars">
+            <h3>Category Budget Bars (Click segments for item details)</h3>
+            <div className="category-bars">
+              {calculationResult.categorySummaries.map((item) => (
+                <div className="category-bar-card" key={item.category}>
+                  <div className="category-bar-header">
+                    <strong>{item.label}</strong>
+                    <span>{formatCurrency(item.actual)} / {formatCurrency(item.budget)}</span>
+                  </div>
+                  <div className="category-budget-bar" title={`${item.label} budget cap: ${formatCurrency(item.budget)}`}>
+                    {item.itemSegments.map((segment) => (
+                      <div
+                        key={`${item.category}-${segment.id}`}
+                        className="expense-segment"
+                        style={{
+                          width: `${segment.widthPercent}%`,
+                          backgroundColor: segment.color
+                        }}
+                        onClick={() => setSelectedSegment((current) => {
+                          if (current && current.category === item.category && current.segmentId === segment.id) {
+                            return null;
+                          }
+
+                          return {
+                            category: item.category,
+                            segmentId: segment.id,
+                            label: segment.label,
+                            amount: segment.amount,
+                            percentOfBudget: segment.percentOfBudget,
+                            percentOfIncome: segment.percentOfIncome,
+                            isRemainingBudget: false
+                          };
+                        })}
+                        title={segment.hoverText}
+                        aria-label={segment.hoverText}
+                      />
+                    ))}
+                    {item.remainingSegment && (
+                      <button
+                        type="button"
+                        className="expense-segment remaining-segment"
+                        style={{
+                          width: `${item.remainingSegment.widthPercent}%`
+                        }}
+                        onClick={() => setSelectedSegment((current) => {
+                          if (current && current.category === item.category && current.segmentId === item.remainingSegment.id) {
+                            return null;
+                          }
+
+                          return {
+                            category: item.category,
+                            segmentId: item.remainingSegment.id,
+                            label: item.remainingSegment.label,
+                            amount: item.remainingSegment.amount,
+                            percentOfBudget: item.remainingSegment.percentOfBudget,
+                            percentOfIncome: item.remainingSegment.percentOfIncome,
+                            isRemainingBudget: true
+                          };
+                        })}
+                        title={item.remainingSegment.hoverText}
+                        aria-label={item.remainingSegment.hoverText}
+                      />
+                    )}
+                  </div>
+                  <div className="category-bar-meta">
+                    <span className={`budget-status ${
+                      item.category === 'save'
+                        ? (item.status === 'Under Budget' ? 'status-over' : item.status === 'Over Budget' ? 'status-under' : 'status-at')
+                        : (item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at')
+                    }`}>
+                      {item.status}
+                    </span>
+                    {item.difference > 0 && (
+                      <span className="overflow-note">Over by {formatCurrency(item.difference)}</span>
+                    )}
+                    {item.itemSegments.length === 0 && (
+                      <span className="overflow-note">No expenses entered</span>
+                    )}
+                    {selectedSegment && selectedSegment.category === item.category && (
+                      <div className="segment-click-popover" role="status" aria-live="polite">
+                        <strong>{selectedSegment.label}</strong>
+                        <span>{formatCurrency(selectedSegment.amount)}</span>
+                        <span>
+                          {selectedSegment.isRemainingBudget ? 'Remaining' : 'Uses'} {selectedSegment.percentOfIncome.toFixed(1)}% of total income
+                        </span>
+                        <span>
+                          {selectedSegment.percentOfBudget.toFixed(1)}% of {selectedSegment.isRemainingBudget ? 'this budget remains' : 'this budget'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
-      {showDebtResults && (
-        <section className="debt-timeline" aria-label="Debt payoff timeline">
+      {/* Debt Results Step */}
+      {currentStep?.key === 'debt' && (
+        <section aria-label="Debt payoff timeline">
           <div className="debt-timeline-header">
             <h3>Debt Payoff Timeline</h3>
             <div className="payoff-method-toggle" role="group" aria-label="Payoff method">
@@ -218,13 +305,13 @@ function ResultsPanel({
                 }}
               />
             </div>
-            <label className="inline-checkbox">
+            <label className="inline-checkbox rollover-toggle">
               <input
                 type="checkbox"
                 checked={rolloverPaidOffMinimums}
                 onChange={(event) => setRolloverPaidOffMinimums(event.target.checked)}
               />
-               Add paid-off debt minimum payments to extra payment
+              Add paid-off debt minimum payments to extra payment
             </label>
           </div>
 
@@ -286,8 +373,9 @@ function ResultsPanel({
         </section>
       )}
 
-      {showNetWorthResults && (
-        <section className="net-worth" aria-label="Net worth summary">
+      {/* Net Worth Results Step */}
+      {currentStep?.key === 'networth' && (
+        <section aria-label="Net worth summary">
           <div className="net-worth-header">
             <h3>Net Worth</h3>
             <strong>{formatCurrency(netWorthData.netWorth)}</strong>
@@ -306,7 +394,7 @@ function ResultsPanel({
                       type="button"
                       className={`net-worth-segment ${selectedNetWorthSegment && selectedNetWorthSegment.type === 'asset' && selectedNetWorthSegment.id === asset.id ? 'selected' : ''}`}
                       style={{
-                        width: `${asset.widthPercent}%`,
+                        width: `${asset.segmentPercent}%`,
                         backgroundColor: segmentPalette.needs[index % segmentPalette.needs.length]
                       }}
                       onClick={() => setSelectedNetWorthSegment({ type: 'asset', id: asset.id })}
@@ -329,7 +417,7 @@ function ResultsPanel({
                       type="button"
                       className={`net-worth-segment ${selectedNetWorthSegment && selectedNetWorthSegment.type === 'debt' && selectedNetWorthSegment.id === debt.id ? 'selected' : ''}`}
                       style={{
-                        width: `${debt.widthPercent}%`,
+                        width: `${debt.segmentPercent}%`,
                         backgroundColor: segmentPalette.wants[index % segmentPalette.wants.length]
                       }}
                       onClick={() => setSelectedNetWorthSegment({ type: 'debt', id: debt.id })}
@@ -377,8 +465,155 @@ function ResultsPanel({
         </section>
       )}
 
-      {showGuidelinesResults && (
-        <section className="guidelines" aria-label="Guidelines and limits">
+      {/* Retirement Tracking Results Step */}
+      {currentStep?.key === 'retirement' && calculationResult.retirementTracking && (
+        <section aria-label="Retirement tracking">
+          <h3>Retirement Tracking</h3>
+          
+          {calculationResult.retirementTracking.currentAge > 0 ? (
+            <>
+              <div className="retirement-status-card">
+                <div className="retirement-status-header">
+                  <h4>Current Status (Age {calculationResult.retirementTracking.currentAge})</h4>
+                  <span className={`retirement-status-badge ${calculationResult.retirementTracking.isOnTrack ? 'on-track' : 'behind'}`}>
+                    {calculationResult.retirementTracking.isOnTrack ? '✓ On Track' : '⚠ Behind'}
+                  </span>
+                </div>
+                
+                <div className="retirement-metrics">
+                  <div className="retirement-metric-card">
+                    <p>Total Retirement Savings</p>
+                    <strong>{formatCurrency(calculationResult.retirementTracking.totalRetirementBalance)}</strong>
+                  </div>
+                  <div className="retirement-metric-card">
+                    <p>Target for Your Age</p>
+                    <strong>{formatCurrency(calculationResult.retirementTracking.retirementTarget)}</strong>
+                    <span className="metric-subtext">
+                      {calculationResult.retirementTracking.retirementTargetMultiplier}x annual salary
+                    </span>
+                  </div>
+                  <div className="retirement-metric-card">
+                    <p>Progress to Target</p>
+                    <strong>{calculationResult.retirementTracking.percentOfTarget.toFixed(1)}%</strong>
+                  </div>
+                </div>
+
+                <div className="retirement-progress-bar-wrap">
+                  <div className="retirement-progress-bar">
+                    <div 
+                      className={`retirement-progress-fill ${calculationResult.retirementTracking.isOnTrack ? 'on-track' : 'behind'}`}
+                      style={{ width: `${Math.min(calculationResult.retirementTracking.percentOfTarget, 100)}%` }}
+                    />
+                  </div>
+                  <div className="retirement-progress-labels">
+                    <span>Current: {formatCurrency(calculationResult.retirementTracking.totalRetirementBalance)}</span>
+                    <span>Target: {formatCurrency(calculationResult.retirementTracking.retirementTarget)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="retirement-milestones">
+                <h4>Retirement Savings Milestones</h4>
+                <div className="milestone-list">
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 30 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 30</span>
+                    <span className="milestone-target">1x annual salary</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 1)}</span>
+                  </div>
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 40 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 40</span>
+                    <span className="milestone-target">3x annual salary</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 3)}</span>
+                  </div>
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 50 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 50</span>
+                    <span className="milestone-target">6x annual salary</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 6)}</span>
+                  </div>
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 60 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 60</span>
+                    <span className="milestone-target">9x annual salary</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 9)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {calculationResult.retirementTracking.yearsToRetirement > 0 && (
+                <div className="retirement-projection">
+                  <h4>Retirement Projection</h4>
+                  <p className="projection-subtext">
+                    Based on your current savings and monthly contributions
+                  </p>
+
+                  <div className="projection-controls">
+                    <label htmlFor="retirement-rate-slider">
+                      Rate of Return: {retirementRateOfReturn}%
+                    </label>
+                    <div className="rate-slider-wrap">
+                      <input
+                        id="retirement-rate-slider"
+                        type="range"
+                        min="1"
+                        max="20"
+                        step="0.5"
+                        value={retirementRateOfReturn}
+                        onChange={(event) => setRetirementRateOfReturn(Number.parseFloat(event.target.value))}
+                      />
+                      <div className="rate-slider-labels">
+                        <span>1%</span>
+                        <span>Conservative (4-6%)</span>
+                        <span>Moderate (7-10%)</span>
+                        <span>Aggressive (11%+)</span>
+                        <span>20%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="projection-summary">
+                    <div className="projection-metric-card">
+                      <p>Years to Retirement</p>
+                      <strong>{calculationResult.retirementTracking.yearsToRetirement} years</strong>
+                      <span className="metric-subtext">Until age 65</span>
+                    </div>
+                    <div className="projection-metric-card">
+                      <p>Monthly Contribution</p>
+                      <strong>{formatCurrency(calculationResult.retirementTracking.monthlyRetirementContribution)}</strong>
+                      <span className="metric-subtext">Includes employer match</span>
+                    </div>
+                    <div className="projection-metric-card highlight">
+                      <p>Projected Value at 65</p>
+                      <strong>{formatCurrency(calculationResult.retirementTracking.projectedRetirementValue)}</strong>
+                      <span className="metric-subtext">At {retirementRateOfReturn}% annual return</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {calculationResult.retirementTracking.currentAge < calculationResult.retirementTracking.nextMilestoneAge && (
+                <div className="retirement-next-goal">
+                  <h4>Next Milestone</h4>
+                  <p>
+                    By age {calculationResult.retirementTracking.nextMilestoneAge}, aim to have{' '}
+                    <strong>{formatCurrency(calculationResult.retirementTracking.nextMilestoneTarget)}</strong>
+                    {' '}({calculationResult.retirementTracking.nextMilestoneMultiplier}x your annual salary)
+                  </p>
+                  <p className="next-goal-gap">
+                    Gap to close: {formatCurrency(Math.max(0, calculationResult.retirementTracking.nextMilestoneTarget - calculationResult.retirementTracking.totalRetirementBalance))}
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="retirement-no-data">
+              <p>Enter your age on the About Me page to see retirement tracking.</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Guidelines Results Step */}
+      {currentStep?.key === 'guidelines' && (
+        <section aria-label="Guidelines and limits">
           <h3>Guidelines and Limits</h3>
           <div className="guideline-list">
             {guidelines.map((rule) => (
@@ -390,6 +625,194 @@ function ResultsPanel({
           </div>
         </section>
       )}
+
+      {/* Dashboard - Overview of all results */}
+      {currentStep?.key === 'dashboard' && (
+        <div className="dashboard-overview">
+          {showBudgetResults && (
+            <section className="dashboard-section" aria-label="Budget summary">
+              <h3>Budget Summary</h3>
+              <div className="summary-metrics">
+                <div className="metric-card">
+                  <p>Monthly Income</p>
+                  <strong>{formatCurrency(calculationResult.monthlyIncome)}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Total Expenses</p>
+                  <strong>{formatCurrency(calculationResult.totalExpenses)}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Remaining</p>
+                  <strong>{formatCurrency(calculationResult.monthlyIncome - calculationResult.totalExpenses)}</strong>
+                </div>
+              </div>
+              <div className="dashboard-categories">
+                {calculationResult.categorySummaries.map((item) => (
+                  <div key={item.category} className="dashboard-category-item">
+                    <span>{item.label}</span>
+                    <span className={item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}>
+                      {formatCurrency(item.actual)} / {formatCurrency(item.budget)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'budget'))}
+              >
+                View Budget Details →
+              </button>
+            </section>
+          )}
+
+          {showDebtResults && totalDebtPayoffSummary && (
+            <section className="dashboard-section" aria-label="Debt summary">
+              <h3>Debt Payoff Summary</h3>
+              <div className="summary-metrics">
+                <div className="metric-card">
+                  <p>Payoff Time</p>
+                  <strong>{totalDebtPayoffSummary.totalTime}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Debt-Free By</p>
+                  <strong>{totalDebtPayoffSummary.paidOffBy}</strong>
+                </div>
+              </div>
+              <div className="dashboard-debt-list">
+                {payoffTimeline.slice(0, 3).map((debt) => (
+                  <div key={debt.id} className="dashboard-debt-item">
+                    <span>{debt.label}</span>
+                    <span>{debt.payoffText}</span>
+                  </div>
+                ))}
+                {payoffTimeline.length > 3 && (
+                  <p className="dashboard-more">+{payoffTimeline.length - 3} more</p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'debt'))}
+              >
+                View Debt Details →
+              </button>
+            </section>
+          )}
+
+          {showNetWorthResults && (
+            <section className="dashboard-section" aria-label="Net worth summary">
+              <h3>Net Worth</h3>
+              <div className="summary-metrics">
+                <div className="metric-card">
+                  <p>Net Worth</p>
+                  <strong className={netWorthData.netWorth >= 0 ? 'positive' : 'negative'}>
+                    {formatCurrency(netWorthData.netWorth)}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <p>Total Assets</p>
+                  <strong>{formatCurrency(netWorthData.totalAssets)}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Total Debts</p>
+                  <strong>{formatCurrency(netWorthData.totalDebts)}</strong>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'networth'))}
+              >
+                View Net Worth Details →
+              </button>
+            </section>
+          )}
+
+          {showRetirementResults && calculationResult.retirementTracking && calculationResult.retirementTracking.currentAge > 0 && (
+            <section className="dashboard-section" aria-label="Retirement summary">
+              <h3>Retirement Tracking</h3>
+              <div className="summary-metrics">
+                <div className="metric-card">
+                  <p>Current Savings</p>
+                  <strong>{formatCurrency(calculationResult.retirementTracking.totalRetirementBalance)}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Target (Age {calculationResult.retirementTracking.currentAge})</p>
+                  <strong>{formatCurrency(calculationResult.retirementTracking.retirementTarget)}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Status</p>
+                  <strong className={calculationResult.retirementTracking.isOnTrack ? 'positive' : 'negative'}>
+                    {calculationResult.retirementTracking.isOnTrack ? 'On Track' : 'Behind'}
+                  </strong>
+                </div>
+              </div>
+              {calculationResult.retirementTracking.yearsToRetirement > 0 && (
+                <div className="dashboard-retirement-projection">
+                  <p>
+                    Projected at 65: <strong>{formatCurrency(calculationResult.retirementTracking.projectedRetirementValue)}</strong>
+                  </p>
+                  <p className="projection-note">
+                    Based on {retirementRateOfReturn}% annual return
+                  </p>
+                </div>
+              )}
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'retirement'))}
+              >
+                View Retirement Details →
+              </button>
+            </section>
+          )}
+
+          {showGuidelinesResults && (
+            <section className="dashboard-section" aria-label="Guidelines summary">
+              <h3>Financial Guidelines</h3>
+              <div className="dashboard-guidelines">
+                {guidelines.map((rule) => (
+                  <div key={rule.id} className={`dashboard-guideline-item ${rule.passed ? 'pass' : 'fail'}`}>
+                    <span>{rule.passed ? '✓' : '✗'}</span>
+                    <span>{rule.label}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'guidelines'))}
+              >
+                View Guidelines Details →
+              </button>
+            </section>
+          )}
+        </div>
+      )}
+
+      {/* Navigation buttons */}
+      <div className="results-navigation">
+        <button
+          type="button"
+          className="results-nav-btn prev"
+          onClick={handlePrevious}
+          disabled={isFirstStep}
+        >
+          ← Previous
+        </button>
+        <span className="results-step-indicator">
+          {activeResultStep + 1} / {steps.length}
+        </span>
+        <button
+          type="button"
+          className="results-nav-btn next"
+          onClick={handleNext}
+          disabled={isLastStep}
+        >
+          Next →
+        </button>
+      </div>
     </section>
   );
 }

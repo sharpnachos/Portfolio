@@ -185,8 +185,100 @@
   box-shadow: none;
 }
 
+.help-continue-btn.secondary {
+  margin-top: 10px;
+  background: rgba(2, 6, 23, 0.18);
+  border-color: rgba(226, 232, 240, 0.6);
+}
+
+.housing-choice-row {
+  width: min(520px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.housing-radio-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid rgba(236, 253, 245, 0.55);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.13);
+  color: #ecfdf5;
+  padding: 14px 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+
+.housing-radio-card input {
+  width: 18px;
+  height: 18px;
+  accent-color: #34d399;
+}
+
+.housing-fields-wrap {
+  margin-top: 16px;
+  width: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.housing-fields-wrap label {
+  color: #dcfce7;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.housing-fields-wrap input[type='text'] {
+  border: 1px solid rgba(236, 253, 245, 0.65);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #f0fdf4;
+  font-size: 0.98rem;
+  outline: none;
+}
+
+.housing-fields-wrap input[type='text']::placeholder {
+  color: rgba(236, 253, 245, 0.7);
+}
+
+.housing-fields-wrap input[type='text']:focus {
+  border-color: rgba(167, 243, 208, 1);
+  box-shadow: 0 0 0 2px rgba(110, 231, 183, 0.25);
+}
+
+.housing-fields-wrap input[type='text']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.housing-paidoff-check {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ecfdf5;
+  font-weight: 700;
+}
+
+.housing-paidoff-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #34d399;
+}
+
 @media (max-width: 760px) {
   .help-options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .housing-choice-row {
     grid-template-columns: 1fr;
   }
 }

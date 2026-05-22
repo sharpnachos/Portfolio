@@ -3,6 +3,7 @@ import '../styles/Index.css';
 import '../styles/Onboarding.css';
 import FinanceInputColumn from './finance/FinanceInputColumn';
 import AboutMeColumn from './finance/AboutMeColumn';
+import SavingsGoalsColumn from './finance/SavingsGoalsColumn';
 import OnboardingScreens from './finance/OnboardingScreens';
 import ResultsPanel from './finance/ResultsPanel';
 import {
@@ -11,19 +12,21 @@ import {
   segmentPalette,
   createItem,
   createContributionItem,
+  createSavingsGoalItem,
   sanitizeDecimalInput,
   parseAmount,
   getIncomeMultiplier,
+  getContributionMultiplier,
   getBudgetStatus,
   formatPayoffTime,
   getPayoffMonthYear,
   getMonthYearFromOffset
 } from './finance/financeHelpers';
 
-const ALL_STEP_KEYS = ['income', 'assets', 'contributions', 'expenses', 'debt', 'about-me'];
+const ALL_STEP_KEYS = ['income', 'assets', 'contributions', 'expenses', 'debt', 'savings-goals', 'about-me'];
 
 function Index() {
-  const [incomeFields, setIncomeFields] = useState([createItem('Primary Paycheck')]);
+  const [incomeFields, setIncomeFields] = useState([createItem('Primary Paycheck', 'biweekly')]);
   const [assetFields, setAssetFields] = useState([createItem('Primary Account', 'monthly', 'needs', 'checking account')]);
   const [expenseFields, setExpenseFields] = useState([
     createItem('Rent'),
@@ -34,6 +37,7 @@ function Index() {
   ]);
   const [debtFields, setDebtFields] = useState([createItem('Debt 1')]);
   const [contributionFields, setContributionFields] = useState([]);
+  const [savingsGoalFields, setSavingsGoalFields] = useState([createSavingsGoalItem('Goal 1', 1)]);
   const [editingItemId, setEditingItemId] = useState(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [formCollapsed, setFormCollapsed] = useState(false);
@@ -45,13 +49,25 @@ function Index() {
   const [rolloverPaidOffMinimums, setRolloverPaidOffMinimums] = useState(true);
   const [selectedPayoffPhaseKey, setSelectedPayoffPhaseKey] = useState(null);
   const [selectedNetWorthSegment, setSelectedNetWorthSegment] = useState(null);
+  const [retirementRateOfReturn, setRetirementRateOfReturn] = useState(7);
   const [activeAmountField, setActiveAmountField] = useState(null);
   const [activeRateField, setActiveRateField] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
   const [showHelpChooser, setShowHelpChooser] = useState(false);
+  const [showHousingChooser, setShowHousingChooser] = useState(false);
   const [selectedHelpOptions, setSelectedHelpOptions] = useState([]);
+  const [hasManualMaritalStatus, setHasManualMaritalStatus] = useState(false);
+  const [housingInfo, setHousingInfo] = useState({
+    occupancy: 'rent',
+    rentAmount: '',
+    mortgageBalance: '',
+    mortgageInterestRate: '',
+    monthlyMortgagePayment: '',
+    homeEquity: '',
+    homePaidOff: false
+  });
   const [aboutMe, setAboutMe] = useState({
     age: '',
     maritalStatus: 'single',
@@ -80,6 +96,51 @@ function Index() {
       });
     });
   }, [assetFields]);
+
+  useEffect(() => {
+    if (hasManualMaritalStatus) {
+      return;
+    }
+
+    const defaultMaritalStatus = incomeFields.length > 1 ? 'married' : 'single';
+    setAboutMe((previous) => ({
+      ...previous,
+      maritalStatus: defaultMaritalStatus
+    }));
+  }, [incomeFields.length, hasManualMaritalStatus]);
+
+  // Sync debt minimum payments to expense fields
+  useEffect(() => {
+    setExpenseFields((previous) => {
+      // Get all non-debt expenses
+      const nonDebtExpenses = previous.filter((expense) => !expense.isDebtPayment);
+      
+      // Create debt payment expenses from current debt fields
+      const debtPaymentExpenses = debtFields
+        .filter((debt) => parseAmount(debt.balance) > 0 && parseAmount(debt.minimumPayment) > 0)
+        .map((debt, index) => {
+          // Check if we already have this debt expense
+          const existing = previous.find((expense) => expense.linkedDebtId === debt.id);
+          
+          if (existing) {
+            // Update existing debt expense
+            return {
+              ...existing,
+              label: `${debt.label || `Debt ${index + 1}`} Payment`,
+              value: String(parseAmount(debt.minimumPayment))
+            };
+          }
+          
+          // Create new debt expense
+          return {
+            ...createItem(`${debt.label || `Debt ${index + 1}`} Payment`, 'monthly', 'needs', 'checking account', true, debt.id),
+            value: String(parseAmount(debt.minimumPayment))
+          };
+        });
+      
+      return [...nonDebtExpenses, ...debtPaymentExpenses];
+    });
+  }, [debtFields]);
 
   const formatCurrency = (value) => (
     new Intl.NumberFormat('en-US', {
@@ -323,12 +384,12 @@ function Index() {
 
     const assetsWithWidth = assets.map((asset) => ({
       ...asset,
-      widthPercent: maxMagnitude > 0 ? (asset.amount / maxMagnitude) * 100 : 0
+      segmentPercent: totalAssets > 0 ? (asset.amount / totalAssets) * 100 : 0
     }));
 
     const debtsWithWidth = debts.map((debt) => ({
       ...debt,
-      widthPercent: maxMagnitude > 0 ? (debt.amount / maxMagnitude) * 100 : 0
+      segmentPercent: totalDebts > 0 ? (debt.amount / totalDebts) * 100 : 0
     }));
 
     const scalePercentAssets = maxMagnitude > 0 ? (totalAssets / maxMagnitude) * 100 : 0;
@@ -463,6 +524,15 @@ function Index() {
     setter(nextValues);
   };
 
+  const updateAssetField = (setter, values, index, key, newValue) => {
+    const nextValues = [...values];
+    nextValues[index] = {
+      ...nextValues[index],
+      [key]: newValue
+    };
+    setter(nextValues);
+  };
+
   const updateAssetType = (setter, values, index, newAssetType) => {
     const nextValues = [...values];
     nextValues[index] = {
@@ -484,6 +554,11 @@ function Index() {
   const addField = (title, setter, values) => {
     const nextLabel = `${title} ${values.length + 1}`;
 
+    if (title === 'Income') {
+      setter([...values, createItem(nextLabel, 'biweekly')]);
+      return;
+    }
+
     if (title === 'Assets') {
       setter([...values, createItem(nextLabel, 'monthly', 'needs', 'checking account')]);
       return;
@@ -494,6 +569,12 @@ function Index() {
 
   const removeField = (setter, values, index) => {
     if (values.length === 1) {
+      return;
+    }
+
+    // Prevent deletion of debt payment expenses
+    const item = values[index];
+    if (item && item.isDebtPayment) {
       return;
     }
 
@@ -535,6 +616,10 @@ function Index() {
   };
 
   const updateAboutMeField = (key, value) => {
+    if (key === 'maritalStatus') {
+      setHasManualMaritalStatus(true);
+    }
+
     setAboutMe((previous) => ({
       ...previous,
       [key]: value
@@ -582,6 +667,7 @@ function Index() {
 
     if (selectedHelpOptionSet.has(saveGoalOptionLabel)) {
       nextKeys.add('income');
+      nextKeys.add('savings-goals');
     }
 
     if (nextKeys.size === 0) {
@@ -595,6 +681,7 @@ function Index() {
   const showDebtResults = wantsAllExperience || selectedHelpOptionSet.has(debtOptionLabel);
   const showNetWorthResults = wantsAllExperience || selectedHelpOptionSet.has(netWorthOptionLabel);
   const showGuidelinesResults = wantsAllExperience;
+  const showRetirementResults = wantsAllExperience || selectedHelpOptionSet.has(budgetOptionLabel) || selectedHelpOptionSet.has(saveGoalOptionLabel);
 
   const allInputSteps = [
     {
@@ -614,6 +701,14 @@ function Index() {
       addText: 'Add Asset'
     },
     {
+      key: 'debt',
+      title: 'Debt',
+      values: debtFields,
+      setter: setDebtFields,
+      prefix: 'debt',
+      addText: 'Add Debt'
+    },
+    {
       key: 'contributions',
       title: 'Contributions',
       values: contributionFields,
@@ -630,12 +725,12 @@ function Index() {
       addText: 'Add Expense'
     },
     {
-      key: 'debt',
-      title: 'Debt',
-      values: debtFields,
-      setter: setDebtFields,
-      prefix: 'debt',
-      addText: 'Add Debt'
+      key: 'savings-goals',
+      title: 'Savings Goals',
+      values: savingsGoalFields,
+      setter: setSavingsGoalFields,
+      prefix: 'savings-goal',
+      addText: 'Add Goal'
     },
     {
       key: 'about-me',
@@ -688,9 +783,15 @@ function Index() {
   };
 
   const handleCalculate = () => {
+    const totalMonthlyContributions = contributionFields.reduce((sum, item) => {
+      const contributionAmount = parseAmount(item.monthlyContribution);
+      return sum + (contributionAmount * getContributionMultiplier(item.frequency));
+    }, 0);
+
     const totalDeductedContributions = contributionFields.reduce((sum, item) => {
       if (item.deductedFromPay) {
-        return sum + parseAmount(item.monthlyContribution);
+        const contributionAmount = parseAmount(item.monthlyContribution);
+        return sum + (contributionAmount * getContributionMultiplier(item.frequency));
       }
       return sum;
     }, 0);
@@ -735,13 +836,13 @@ function Index() {
       save: []
     });
 
-    if (totalMinimumDebtPayments > 0) {
-      expenseItemsByCategory.needs = [
-        ...expenseItemsByCategory.needs,
+    if (totalMonthlyContributions > 0) {
+      expenseItemsByCategory.save = [
+        ...expenseItemsByCategory.save,
         {
-          id: 'auto-debt-payments',
-          label: 'Debt Payments',
-          amount: totalMinimumDebtPayments
+          id: 'auto-monthly-contributions',
+          label: 'Contributions',
+          amount: totalMonthlyContributions
         }
       ];
     }
@@ -766,28 +867,47 @@ function Index() {
       const fillPercent = budget > 0
         ? Math.min((actual / budget) * 100, 100)
         : (actual > 0 ? 100 : 0);
+      const remainingBudget = Math.max(budget - actual, 0);
+      const remainingPercentOfBudget = budget > 0 ? (remainingBudget / budget) * 100 : 0;
+      const remainingPercentOfIncome = monthlyIncome > 0 ? (remainingBudget / monthlyIncome) * 100 : 0;
 
       const itemSegments = expenseItemsByCategory[category].map((entry, index) => {
         const percentOfBudget = budget > 0 ? (entry.amount / budget) * 100 : 0;
+        const percentOfIncome = monthlyIncome > 0 ? (entry.amount / monthlyIncome) * 100 : 0;
         const widthPercent = actual > 0 ? (entry.amount / actual) * fillPercent : 0;
 
         return {
           ...entry,
           percentOfBudget,
+          percentOfIncome,
           widthPercent,
           color: segmentPalette[category][index % segmentPalette[category].length],
-          hoverText: `${entry.label}: ${formatCurrency(entry.amount)} (${budget > 0 ? percentOfBudget.toFixed(1) : '0.0'}% of ${categoryLabels[category]} budget)`
+          hoverText: `${entry.label}: ${formatCurrency(entry.amount)} (${budget > 0 ? percentOfBudget.toFixed(1) : '0.0'}% of ${categoryLabels[category]} budget, ${percentOfIncome.toFixed(1)}% of total income)`
         };
       });
+
+      const remainingSegment = remainingBudget > 0
+        ? {
+          id: `${category}-remaining-budget`,
+          label: 'Remaining Budget',
+          amount: remainingBudget,
+          percentOfBudget: remainingPercentOfBudget,
+          percentOfIncome: remainingPercentOfIncome,
+          widthPercent: 100 - fillPercent,
+          hoverText: `${categoryLabels[category]} remaining: ${formatCurrency(remainingBudget)} (${remainingPercentOfBudget.toFixed(1)}% of ${categoryLabels[category]} budget, ${remainingPercentOfIncome.toFixed(1)}% of total income)`
+        }
+        : null;
 
       return {
         category,
         label: categoryLabels[category],
         budget,
         actual,
+        remainingBudget,
         difference,
         status: getBudgetStatus(actual, budget),
-        itemSegments
+        itemSegments,
+        remainingSegment
       };
     });
 
@@ -820,11 +940,105 @@ function Index() {
       .filter((item) => item.category === 'save' && item.addlDebtPayment)
       .reduce((sum, item) => sum + parseAmount(item.value), 0);
 
+    // Retirement tracking calculations
+    const userAge = parseAmount(aboutMe.age);
+    const retirementAccounts = assetFields.filter((asset) => 
+      (asset.assetType || '').toLowerCase() === 'retirement account'
+    );
+    
+    const totalRetirementBalance = retirementAccounts.reduce((sum, asset) => 
+      sum + parseAmount(asset.value), 0
+    );
+
+    const retirementContributions = contributionFields.filter((contribution) => 
+      (contribution.assetType || '').toLowerCase() === 'retirement account'
+    );
+
+    const monthlyRetirementContribution = retirementContributions.reduce((sum, contribution) => {
+      const contributionAmount = parseAmount(contribution.monthlyContribution);
+      const monthlyAmount = contributionAmount * getContributionMultiplier(contribution.frequency);
+      const matchPercent = parseAmount(contribution.matchPercentage);
+      const employerMatch = contribution.maxMatchAchieved ? 0 : (monthlyAmount * matchPercent / 100);
+      return sum + monthlyAmount + employerMatch;
+    }, 0);
+
+    // Determine retirement target based on age
+    let retirementTargetMultiplier = 0;
+    let nextMilestoneAge = 30;
+    let nextMilestoneMultiplier = 1;
+    
+    if (userAge >= 60) {
+      retirementTargetMultiplier = 9;
+      nextMilestoneAge = 67;
+      nextMilestoneMultiplier = 10;
+    } else if (userAge >= 50) {
+      retirementTargetMultiplier = 6;
+      nextMilestoneAge = 60;
+      nextMilestoneMultiplier = 9;
+    } else if (userAge >= 40) {
+      retirementTargetMultiplier = 3;
+      nextMilestoneAge = 50;
+      nextMilestoneMultiplier = 6;
+    } else if (userAge >= 30) {
+      retirementTargetMultiplier = 1;
+      nextMilestoneAge = 40;
+      nextMilestoneMultiplier = 3;
+    } else {
+      retirementTargetMultiplier = 0;
+      nextMilestoneAge = 30;
+      nextMilestoneMultiplier = 1;
+    }
+
+    const annualIncome = monthlyIncome * 12;
+    const retirementTarget = annualIncome * retirementTargetMultiplier;
+    const nextMilestoneTarget = annualIncome * nextMilestoneMultiplier;
+    const isOnTrack = totalRetirementBalance >= retirementTarget;
+    const percentOfTarget = retirementTarget > 0 ? (totalRetirementBalance / retirementTarget) * 100 : 0;
+
+    // Calculate future value projection at age 65
+    const yearsToRetirement = Math.max(0, 65 - userAge);
+    const monthsToRetirement = yearsToRetirement * 12;
+    const monthlyRate = retirementRateOfReturn / 100 / 12;
+    
+    let projectedRetirementValue = totalRetirementBalance;
+    
+    if (monthsToRetirement > 0 && monthlyRetirementContribution > 0) {
+      // Future value of current balance
+      const futureValueOfBalance = totalRetirementBalance * Math.pow(1 + monthlyRate, monthsToRetirement);
+      
+      // Future value of monthly contributions (annuity)
+      const futureValueOfContributions = monthlyRate > 0
+        ? monthlyRetirementContribution * ((Math.pow(1 + monthlyRate, monthsToRetirement) - 1) / monthlyRate)
+        : monthlyRetirementContribution * monthsToRetirement;
+      
+      projectedRetirementValue = futureValueOfBalance + futureValueOfContributions;
+    } else if (monthsToRetirement > 0) {
+      projectedRetirementValue = totalRetirementBalance * Math.pow(1 + monthlyRate, monthsToRetirement);
+    }
+
+    const retirementTracking = {
+      currentAge: userAge,
+      totalRetirementBalance,
+      monthlyRetirementContribution,
+      retirementTarget,
+      retirementTargetMultiplier,
+      nextMilestoneAge,
+      nextMilestoneTarget,
+      nextMilestoneMultiplier,
+      isOnTrack,
+      percentOfTarget,
+      yearsToRetirement,
+      projectedRetirementValue,
+      rateOfReturn: retirementRateOfReturn,
+      annualIncome
+    };
+
     setCalculationResult({
       monthlyIncome,
       totalExpenses,
       categorySummaries,
-      warnings
+      warnings,
+      retirementTracking
     });
     setAdditionalDebtPayment(Math.max(100, addlDebtPaymentSum));
     setPayoffMethod('snowball');
@@ -862,9 +1076,156 @@ function Index() {
       return;
     }
 
+    setShowHelpChooser(false);
+    setShowHousingChooser(true);
+  };
+
+  const updateHousingInfo = (key, rawValue) => {
+    const nextValue = key === 'occupancy' ? rawValue : sanitizeDecimalInput(rawValue);
+
+    setHousingInfo((previous) => ({
+      ...previous,
+      [key]: nextValue,
+      ...(key === 'occupancy' && rawValue === 'rent'
+        ? {
+          mortgageBalance: '',
+          mortgageInterestRate: '',
+          monthlyMortgagePayment: '',
+          homeEquity: '',
+          homePaidOff: false
+        }
+        : {}),
+      ...(key === 'occupancy' && rawValue === 'own'
+        ? { rentAmount: '' }
+        : {})
+    }));
+  };
+
+  const handleHousingPaidOffToggle = (checked) => {
+    setHousingInfo((previous) => ({
+      ...previous,
+      homePaidOff: Boolean(checked),
+      ...(checked
+        ? {
+          mortgageBalance: '',
+          mortgageInterestRate: '',
+          monthlyMortgagePayment: '',
+          homeEquity: ''
+        }
+        : {})
+    }));
+  };
+
+  const canContinueHousing = useMemo(() => {
+    if (housingInfo.occupancy === 'rent') {
+      return parseAmount(housingInfo.rentAmount) > 0;
+    }
+
+    if (housingInfo.homePaidOff) {
+      return true;
+    }
+
+    return [
+      housingInfo.mortgageBalance,
+      housingInfo.mortgageInterestRate,
+      housingInfo.monthlyMortgagePayment,
+      housingInfo.homeEquity
+    ].every((value) => String(value || '').trim() !== '');
+  }, [housingInfo]);
+
+  const handleHousingContinue = () => {
+    if (!canContinueHousing) {
+      return;
+    }
+
+    const isRenting = housingInfo.occupancy === 'rent';
+    const rentAmount = housingInfo.rentAmount;
+    const mortgageBalance = housingInfo.mortgageBalance;
+    const mortgageInterestRate = housingInfo.mortgageInterestRate;
+    const monthlyMortgagePayment = housingInfo.monthlyMortgagePayment;
+    const homeEquity = housingInfo.homeEquity;
+    const homePaidOff = housingInfo.homePaidOff;
+
+    setExpenseFields((previous) => {
+      const exactRentIndex = previous.findIndex((item) => (item.label || '').trim().toLowerCase() === 'rent');
+
+      if (isRenting) {
+        if (exactRentIndex >= 0) {
+          const next = [...previous];
+          next[exactRentIndex] = {
+            ...next[exactRentIndex],
+            label: 'Rent',
+            value: rentAmount,
+            category: 'needs'
+          };
+          return next;
+        }
+
+        return [
+          {
+            ...createItem('Rent'),
+            value: rentAmount,
+            category: 'needs'
+          },
+          ...previous
+        ];
+      }
+
+      return previous.filter((item) => (item.label || '').trim().toLowerCase() !== 'rent');
+    });
+
+    setDebtFields((previous) => {
+      const exactMortgageIndex = previous.findIndex((item) => (item.label || '').trim().toLowerCase() === 'mortgage');
+
+      if (isRenting || homePaidOff) {
+        return previous.filter((item) => (item.label || '').trim().toLowerCase() !== 'mortgage');
+      }
+
+      const mortgageDebt = {
+        ...(exactMortgageIndex >= 0 ? previous[exactMortgageIndex] : createItem('Mortgage')),
+        label: 'Mortgage',
+        balance: mortgageBalance,
+        minimumPayment: monthlyMortgagePayment,
+        interestRate: mortgageInterestRate,
+        debtType: 'mortgage'
+      };
+
+      if (exactMortgageIndex >= 0) {
+        const next = [...previous];
+        next[exactMortgageIndex] = mortgageDebt;
+        return next;
+      }
+
+      return [mortgageDebt, ...previous];
+    });
+
+    setAssetFields((previous) => {
+      const exactHomeEquityIndex = previous.findIndex((item) => (item.label || '').trim().toLowerCase() === 'home equity');
+
+      if (isRenting || homePaidOff || parseAmount(homeEquity) <= 0) {
+        return previous.filter((item) => (item.label || '').trim().toLowerCase() !== 'home equity');
+      }
+
+      const homeEquityAsset = {
+        ...(exactHomeEquityIndex >= 0 ? previous[exactHomeEquityIndex] : createItem('Home Equity', 'monthly', 'needs', 'other')),
+        label: 'Home Equity',
+        assetType: 'other',
+        value: homeEquity
+      };
+
+      if (exactHomeEquityIndex >= 0) {
+        const next = [...previous];
+        next[exactHomeEquityIndex] = homeEquityAsset;
+        return next;
+      }
+
+      return [homeEquityAsset, ...previous];
+    });
+
     setActiveStep(0);
     setMaxUnlockedStep(0);
     setHasStarted(true);
+    setShowHousingChooser(false);
     setShowHelpChooser(false);
   };
 
@@ -874,13 +1235,21 @@ function Index() {
 
       <OnboardingScreens
         hasStarted={hasStarted}
+        setHasStarted={setHasStarted}
         showHelpChooser={showHelpChooser}
+        showHousingChooser={showHousingChooser}
         setShowHelpChooser={setShowHelpChooser}
+        setShowHousingChooser={setShowHousingChooser}
         selectedHelpOptions={selectedHelpOptions}
         helpOptions={helpOptions}
         allOptionLabel={allOptionLabel}
         handleHelpOptionToggle={handleHelpOptionToggle}
         handleHelpChooserContinue={handleHelpChooserContinue}
+        housingInfo={housingInfo}
+        updateHousingInfo={updateHousingInfo}
+        handleHousingPaidOffToggle={handleHousingPaidOffToggle}
+        canContinueHousing={canContinueHousing}
+        handleHousingContinue={handleHousingContinue}
       />
 
       {hasStarted && !formCollapsed && (
@@ -931,6 +1300,31 @@ function Index() {
                     sanitizeDecimalInput={sanitizeDecimalInput}
                   />
                 )
+                : currentStep && currentStep.key === 'savings-goals'
+                  ? (
+                    <SavingsGoalsColumn
+                      values={savingsGoalFields}
+                      setter={setSavingsGoalFields}
+                      inputPrefix={currentStep.prefix}
+                      buttonText={currentStep.addText}
+                      editingItemId={editingItemId}
+                      draftLabel={draftLabel}
+                      setDraftLabel={setDraftLabel}
+                      saveEditingLabel={saveEditingLabel}
+                      cancelEditingLabel={cancelEditingLabel}
+                      startEditingLabel={startEditingLabel}
+                      activeAmountField={activeAmountField}
+                      setActiveAmountField={setActiveAmountField}
+                      formatCurrencyDisplay={formatCurrencyDisplay}
+                      updateFieldAmountByKey={updateFieldAmountByKey}
+                      updateFieldCategory={updateFieldCategory}
+                      removeField={removeField}
+                      addField={(title, setter, values) => {
+                        const nextLabel = `Goal ${values.length + 1}`;
+                        setter([...values, createSavingsGoalItem(nextLabel, values.length + 1)]);
+                      }}
+                    />
+                  )
                 : (currentStep && (
                   <FinanceInputColumn
                     title={currentStep.title}
@@ -952,6 +1346,7 @@ function Index() {
                     formatPercentDisplay={formatPercentDisplay}
                     updateFieldAmountByKey={updateFieldAmountByKey}
                     updateDebtField={updateDebtField}
+                    updateAssetField={updateAssetField}
                     sanitizeDecimalInput={sanitizeDecimalInput}
                     updateFieldValue={updateFieldValue}
                     updateFieldFrequency={updateFieldFrequency}
@@ -993,6 +1388,7 @@ function Index() {
           showDebtResults={showDebtResults}
           showNetWorthResults={showNetWorthResults}
           showGuidelinesResults={showGuidelinesResults}
+          showRetirementResults={showRetirementResults}
           dismissedWarnings={dismissedWarnings}
           dismissWarning={dismissWarning}
           formatCurrency={formatCurrency}
@@ -1018,6 +1414,8 @@ function Index() {
           setSelectedNetWorthSegment={setSelectedNetWorthSegment}
           segmentPalette={segmentPalette}
           guidelines={guidelines}
+          retirementRateOfReturn={retirementRateOfReturn}
+          setRetirementRateOfReturn={setRetirementRateOfReturn}
           onEditInputs={() => {
             setFormCollapsed(false);
             const maxStepIndex = Math.max(activeInputSteps.length - 1, 0);

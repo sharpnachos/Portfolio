@@ -11,7 +11,7 @@ export const segmentPalette = {
   save: ['#22c55e', '#4ade80', '#86efac', '#bbf7d0']
 };
 
-export const createItem = (label, frequency = 'monthly', category = 'needs', assetType = 'checking account') => ({
+export const createItem = (label, frequency = 'monthly', category = 'needs', assetType = 'checking account', isDebtPayment = false, linkedDebtId = null) => ({
   id: `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   label,
   value: '',
@@ -22,7 +22,9 @@ export const createItem = (label, frequency = 'monthly', category = 'needs', ass
   balance: '',
   minimumPayment: '',
   interestRate: '',
-  debtType: 'other'
+  debtType: 'other',
+  isDebtPayment,
+  linkedDebtId
 });
 
 export const createContributionItem = (asset, fallbackIndex = 0) => ({
@@ -30,11 +32,32 @@ export const createContributionItem = (asset, fallbackIndex = 0) => ({
   sourceAssetId: asset.id,
   label: asset.label || `Asset ${fallbackIndex + 1}`,
   assetType: asset.assetType || 'other',
+  frequency: 'monthly',
   monthlyContribution: '',
   matchPercentage: '',
   maxMatchAchieved: false,
   deductedFromPay: false
 });
+
+export const createSavingsGoalItem = (label = 'Goal 1', priority = 1) => ({
+  id: `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  label,
+  amountSaved: '',
+  amountNeeded: '',
+  priority
+});
+
+export const getContributionMultiplier = (frequency) => {
+  if (frequency === 'weekly') {
+    return 4;
+  }
+
+  if (frequency === 'biweekly') {
+    return 2;
+  }
+
+  return 1;
+};
 
 export const sanitizeDecimalInput = (rawValue, maxDecimals = 2) => {
   const value = String(rawValue ?? '').replace(/[^0-9.]/g, '');
@@ -62,11 +85,11 @@ export const parseAmount = (rawValue) => {
 
 export const getIncomeMultiplier = (frequency) => {
   if (frequency === 'weekly') {
-    return 52 / 12;
+    return 4;
   }
 
   if (frequency === 'biweekly') {
-    return 26 / 12;
+    return 2;
   }
 
   return 1;
