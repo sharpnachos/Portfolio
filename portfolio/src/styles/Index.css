@@ -735,6 +735,12 @@
   background: rgba(220, 38, 38, 0.2); /* Darker red for Expenses */
 }
 
+.summary-metrics .metric-card:nth-child(3):last-child {
+  grid-column: 1 / -1;
+  max-width: calc(50% - 8px);
+  margin: 0 auto;
+}
+
 .budget-grid .budget-card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -876,6 +882,279 @@
 .method-btn.active {
   background: #dbeafe;
   color: #1e3a8a;
+}
+
+.debt-ratio-section {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.debt-ratio-section h4 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.debt-ratio-content {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.debt-ratio-metric {
+  background: white;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+.debt-ratio-metric p {
+  margin: 0 0 4px;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.debt-ratio-metric strong {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.debt-ratio-metric strong.status-warning {
+  color: #f59e0b;
+}
+
+.debt-ratio-guide {
+  margin: 0;
+  padding: 10px;
+  background: white;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  text-align: center;
+  border: 1px solid #e0e7ff;
+}
+
+/* Savings Projections Styles */
+.savings-header {
+  margin-bottom: 16px;
+}
+
+.savings-header h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.savings-recommendation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.savings-recommendation.success {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-color: #34d399;
+}
+
+.savings-recommendation .info-icon,
+.savings-recommendation .check-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: #d97706;
+}
+
+.savings-recommendation.success .check-icon {
+  color: #059669;
+}
+
+.savings-recommendation p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #78350f;
+  font-weight: 500;
+}
+
+.savings-recommendation.success p {
+  color: #065f46;
+}
+
+.savings-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.savings-warning {
+  padding: 16px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.savings-warning p {
+  margin: 0;
+  color: #991b1b;
+  font-size: 0.88rem;
+}
+
+.savings-timeline {
+  margin-bottom: 16px;
+}
+
+.savings-timeline h4 {
+  margin: 0 0 12px;
+  font-size: 0.92rem;
+  color: var(--text-soft);
+}
+
+.savings-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.savings-timeline-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.savings-goal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.savings-goal-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goal-priority {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #22c55e;
+  color: white;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.savings-goal-header strong {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.goal-amount {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.savings-goal-progress {
+  margin-bottom: 10px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e 0%, #10b981 100%);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+.savings-goal-timeline {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.timeline-metric {
+  background: white;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.timeline-metric p {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  color: var(--text-soft);
+}
+
+.timeline-metric strong {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.savings-empty {
+  padding: 24px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.savings-empty p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.dashboard-savings-list {
+  margin-bottom: 12px;
+}
+
+.dashboard-savings-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.dashboard-savings-item:last-child {
+  border-bottom: none;
+}
+
+.dashboard-savings-item span:first-child {
+  color: var(--text);
+}
+
+.dashboard-savings-item span:last-child {
+  color: var(--text-soft);
+  font-weight: 600;
 }
 
 .extra-payment-controls {
@@ -1313,6 +1592,262 @@
   background: #fef2f2;
 }
 
+/* Financial Order of Operations Styles */
+.foo-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.foo-header h3 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+  color: var(--text);
+}
+
+.foo-subtitle {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+}
+
+.foo-current-step {
+  padding: 20px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px solid #fbbf24;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.current-step-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  background: #f59e0b;
+  color: white;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.foo-current-step h4 {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+  color: #78350f;
+}
+
+.current-step-description {
+  margin: 0;
+  color: #92400e;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.foo-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.foo-step-card {
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.foo-step-card.completed {
+  border-color: #86efac;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.foo-step-card.current {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+}
+
+.foo-step-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.foo-step-number {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 1.3rem;
+  font-weight: 700;
+  border: 2px solid #d1d5db;
+}
+
+.foo-step-card.completed .foo-step-number {
+  background: #22c55e;
+  border-color: #16a34a;
+  color: white;
+}
+
+.foo-step-card.current .foo-step-number {
+  background: #fbbf24;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.foo-step-number .check-icon {
+  width: 28px;
+  height: 28px;
+  stroke-width: 3;
+}
+
+.foo-step-info {
+  flex: 1;
+}
+
+.foo-step-info h5 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.foo-step-info p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.foo-step-details {
+  padding: 16px;
+  background: rgba(243, 244, 246, 0.5);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.foo-step-card.completed .foo-step-details {
+  background: rgba(220, 252, 231, 0.3);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.detail-row span {
+  color: var(--text-soft);
+}
+
+.detail-row strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.detail-row.highlight {
+  padding: 8px 12px;
+  background: rgba(254, 243, 199, 0.5);
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.completion-badge {
+  padding: 12px;
+  background: linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+  color: #065f46;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.no-data-message {
+  margin: 0;
+  padding: 12px;
+  background: rgba(229, 231, 235, 0.5);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+.high-interest-debt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.high-interest-debt-list .debt-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(254, 226, 226, 0.5);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.high-interest-debt-list .debt-item span:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.high-interest-debt-list .debt-item span:last-child {
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.roth-contribution-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.roth-contribution-list .contribution-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(209, 250, 229, 0.5);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.roth-contribution-list .contribution-item span:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.roth-contribution-list .contribution-item span:last-child {
+  color: #047857;
+  font-weight: 600;
+}
+
+.foo-footer {
+  padding: 16px;
+  background: rgba(219, 234, 254, 0.5);
+  border: 1px solid #93c5fd;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.foo-footer p {
+  margin: 0;
+  color: #1e40af;
+  font-size: 0.92rem;
+}
+
 /* Results Multi-Step Navigation */
 .results-stepper {
   display: flex;
@@ -1367,20 +1902,21 @@
 
 .results-nav-btn {
   padding: 12px 24px;
-  border: 2px solid #10b981;
-  background: #10b981;
+  border: 2px solid #059669;
+  background: #059669;
   color: white;
   font-size: 1rem;
   font-weight: 600;
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
 }
 
 .results-nav-btn:hover:not(:disabled) {
-  background: #059669;
-  border-color: #059669;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  background: #047857;
+  border-color: #047857;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
 }
 
 .results-nav-btn:disabled {
@@ -1402,10 +1938,11 @@
 }
 
 .dashboard-section {
-  background: rgba(16, 185, 129, 0.05);
-  border: 2px solid rgba(16, 185, 129, 0.2);
+  background: white;
+  border: 2px solid rgba(16, 185, 129, 0.4);
   border-radius: 16px;
   padding: 20px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
 }
 
 .dashboard-section h3 {
@@ -1485,6 +2022,72 @@
 .dashboard-guideline-item span:first-child {
   font-size: 1.2rem;
   font-weight: bold;
+}
+
+.foo-dashboard-status {
+  margin-bottom: 16px;
+}
+
+.foo-dashboard-current {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 12px;
+}
+
+.dashboard-step-badge {
+  padding: 6px 12px;
+  background: #f59e0b;
+  color: white;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.foo-dashboard-current strong {
+  color: #78350f;
+  font-size: 1rem;
+}
+
+.foo-dashboard-progress {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(243, 244, 246, 0.5);
+  border-radius: 10px;
+}
+
+.foo-progress-dot {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 2px solid #d1d5db;
+  transition: all 0.3s ease;
+}
+
+.foo-progress-dot.completed {
+  background: #22c55e;
+  border-color: #16a34a;
+  color: white;
+}
+
+.foo-progress-dot.current {
+  background: #fbbf24;
+  border-color: #f59e0b;
+  color: #78350f;
+  transform: scale(1.1);
 }
 
 .dashboard-more {
@@ -1884,6 +2487,10 @@
     grid-template-columns: 1fr;
   }
 
+  .summary-metrics .metric-card:nth-child(3):last-child {
+    max-width: 100%;
+  }
+
   .budget-grid {
     grid-template-columns: 1fr;
   }
@@ -1891,6 +2498,18 @@
   .debt-timeline-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .debt-ratio-content {
+    grid-template-columns: 1fr;
+  }
+
+  .savings-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .savings-goal-timeline {
+    grid-template-columns: 1fr;
   }
 
   .debt-timeline-summary {
@@ -1919,5 +2538,44 @@
   .category-bar-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .foo-step-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .foo-step-number {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .high-interest-debt-list .debt-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .roth-contribution-list .contribution-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .foo-dashboard-current {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .foo-dashboard-progress {
+    width: 100%;
   }
 }

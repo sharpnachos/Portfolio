@@ -88,6 +88,34 @@ function AboutMeColumn({
             </label>
           </div>
         </div>
+
+        <div className="field-row">
+          <span className="item-title-static">Household Gross Annual Income</span>
+          <div className="field-controls">
+            <input
+              id="about-me-annual-income"
+              type="text"
+              inputMode="decimal"
+              pattern="^[0-9]*[.,]?[0-9]*$"
+              value={activeAmountField === 'about-me-annual-income' ? aboutMe.householdGrossAnnualIncome : formatCurrencyDisplay(aboutMe.householdGrossAnnualIncome)}
+              placeholder="Enter annual income"
+              onFocus={() => setActiveAmountField('about-me-annual-income')}
+              onBlur={() => {
+                setActiveAmountField(null);
+                if (aboutMe.householdGrossAnnualIncome !== '' && !isNaN(Number(aboutMe.householdGrossAnnualIncome))) {
+                  updateAboutMeField('householdGrossAnnualIncome', Number(aboutMe.householdGrossAnnualIncome).toFixed(2));
+                }
+              }}
+              onChange={(event) => {
+                // Allow only numbers and decimals
+                let val = event.target.value.replace(/[^0-9.]/g, '');
+                // Only one decimal point
+                val = val.replace(/(\..*)\./, '$1');
+                updateAboutMeField('householdGrossAnnualIncome', val);
+              }}
+            />
+          </div>
+        </div>
       </div>
     </section>
   );

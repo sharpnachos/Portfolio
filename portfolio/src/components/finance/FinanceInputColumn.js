@@ -69,9 +69,15 @@ function FinanceInputColumn({
                   className="item-title-btn"
                   onClick={() => startEditingLabel(item)}
                   aria-label={`Edit ${item.label} title`}
-                  disabled={item.isDebtPayment}
-                  title={item.isDebtPayment ? 'Debt payment name is set from the Debt page' : 'Click to edit'}
-                  style={item.isDebtPayment ? { cursor: 'default', opacity: 0.7 } : {}}
+                  disabled={item.isDebtPayment || item.isRetirementContribution}
+                  title={
+                    item.isDebtPayment 
+                      ? 'Debt payment name is set from the Debt page' 
+                      : item.isRetirementContribution 
+                        ? 'Contribution name is set from the Contributions page'
+                        : 'Click to edit'
+                  }
+                  style={(item.isDebtPayment || item.isRetirementContribution) ? { cursor: 'default', opacity: 0.7 } : {}}
                 >
                   {item.label}
                 </button>
@@ -134,8 +140,14 @@ function FinanceInputColumn({
                     onFocus={() => setActiveAmountField(fieldId)}
                     onBlur={() => setActiveAmountField(null)}
                     onChange={(event) => updateFieldValue(setter, values, index, event.target.value)}
-                    disabled={item.isDebtPayment}
-                    title={item.isDebtPayment ? 'Debt payment amount is set from the Debt page' : ''}
+                    disabled={item.isDebtPayment || item.isRetirementContribution}
+                    title={
+                      item.isDebtPayment 
+                        ? 'Debt payment amount is set from the Debt page' 
+                        : item.isRetirementContribution 
+                          ? 'Contribution amount is set from the Contributions page'
+                          : ''
+                    }
                   />
                 ) : null}
                 {title === 'Income' && (
@@ -156,15 +168,21 @@ function FinanceInputColumn({
                     value={item.category || 'needs'}
                     onChange={(event) => updateFieldCategory(setter, values, index, event.target.value)}
                     aria-label={`${item.label} category`}
-                    disabled={item.isDebtPayment}
-                    title={item.isDebtPayment ? 'Debt payments are always in the Needs category' : ''}
+                    disabled={item.isDebtPayment || item.isRetirementContribution}
+                    title={
+                      item.isDebtPayment 
+                        ? 'Debt payments are always in the Needs category' 
+                        : item.isRetirementContribution 
+                          ? 'Contributions are always in the Save category'
+                          : ''
+                    }
                   >
                     <option value="needs">Needs</option>
                     <option value="wants">Wants</option>
                     <option value="save">Save</option>
                   </select>
                 )}
-                {title === 'Expenses' && item.category === 'save' && (
+                {title === 'Expenses' && item.category === 'save' && !item.isRetirementContribution && (
                   <div className="checkbox-row">
                     <label className="inline-checkbox" htmlFor={`${fieldId}-addl-debt-payment`}>
                       <input
@@ -231,25 +249,18 @@ function FinanceInputColumn({
                       onBlur={() => setActiveAmountField(null)}
                       onChange={(event) => updateFieldAmountByKey(setter, values, index, 'monthlyContribution', event.target.value)}
                     />
-                    <select
-                      className="frequency-select"
-                      value={item.frequency || 'monthly'}
-                      onChange={(event) => updateFieldFrequency(setter, values, index, event.target.value)}
-                      aria-label={`${item.label} contribution frequency`}
-                    >
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Biweekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                    <label className="inline-checkbox" htmlFor={`${fieldId}-deducted-from-pay`}>
-                      <input
-                        id={`${fieldId}-deducted-from-pay`}
-                        type="checkbox"
-                        checked={Boolean(item.deductedFromPay)}
-                        onChange={(event) => updateFieldBooleanByKey(setter, values, index, 'deductedFromPay', event.target.checked)}
-                      />
-                      Deducted from pay
-                    </label>
+                    {!isRetirementContribution && (
+                      <select
+                        className="frequency-select"
+                        value={item.frequency || 'monthly'}
+                        onChange={(event) => updateFieldFrequency(setter, values, index, event.target.value)}
+                        aria-label={`${item.label} contribution frequency`}
+                      >
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Biweekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    )}
                     {isRetirementContribution && (
                       <>
                         <input
@@ -270,12 +281,31 @@ function FinanceInputColumn({
                             onChange={(event) => updateFieldBooleanByKey(setter, values, index, 'maxMatchAchieved', event.target.checked)}
                           />
                           Max match achieved
+                        </label>                        
+                        <label className="inline-checkbox" htmlFor={`${fieldId}-deducted-from-pay`}>
+                          <input
+                            id={`${fieldId}-deducted-from-pay`}
+                            type="checkbox"
+                            checked={Boolean(item.deductedFromPay)}
+                            onChange={(event) => updateFieldBooleanByKey(setter, values, index, 'deductedFromPay', event.target.checked)}
+                          />
+                          Deducted from pay
                         </label>
+                        <select
+                          className="frequency-select"
+                          value={item.frequency || 'monthly'}
+                          onChange={(event) => updateFieldFrequency(setter, values, index, event.target.value)}
+                          aria-label={`${item.label} contribution frequency`}
+                        >
+                          <option value="weekly">Weekly</option>
+                          <option value="biweekly">Biweekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
                       </>
                     )}
                   </div>
                 )}
-                {title !== 'Contributions' && !item.isDebtPayment && (
+                {title !== 'Contributions' && !item.isDebtPayment && !item.isRetirementContribution && (
                   <button
                     type="button"
                     className="remove-field-btn"

@@ -1,10 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
 
-.tmoney-brand {
+.tmoney-brand-container {
   position: absolute;
   top: 16px;
   left: 18px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tmoney-brand {
   border: 1px solid rgba(236, 253, 245, 0.55);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.11);
@@ -38,6 +45,63 @@
 
 .tmoney-brand:hover .tmoney-brand-text {
   text-shadow: 0 0 8px rgba(167, 243, 208, 0.92), 0 0 20px rgba(110, 231, 183, 0.72);
+}
+
+.tmoney-speech-bubble {
+  position: relative;
+  max-width: 280px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.98) 0%, rgba(220, 252, 231, 0.95) 100%);
+  border: 1.5px solid rgba(134, 239, 172, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25), 0 0 20px rgba(52, 211, 153, 0.15);
+  animation: bubbleFadeIn 0.4s ease-out;
+}
+
+.tmoney-speech-bubble::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 24px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid rgba(134, 239, 172, 0.8);
+}
+
+.tmoney-speech-bubble::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 25px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 7px solid rgba(236, 253, 245, 0.98);
+}
+
+.speech-bubble-content {
+  color: #065f46;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.speech-bubble-content strong {
+  color: #047857;
+  font-weight: 700;
+}
+
+@keyframes bubbleFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .intro-screen {
@@ -280,5 +344,18 @@
 
   .housing-choice-row {
     grid-template-columns: 1fr;
+  }
+
+  .tmoney-brand-container {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 10;
+  }
+
+  .tmoney-speech-bubble {
+    max-width: calc(100vw - 48px);
+    font-size: 0.85rem;
   }
 }

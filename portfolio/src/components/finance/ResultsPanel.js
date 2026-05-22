@@ -7,6 +7,8 @@ function ResultsPanel({
   showNetWorthResults,
   showGuidelinesResults,
   showRetirementResults,
+  showSavingsResults,
+  showFOOResults,
   dismissedWarnings,
   dismissWarning,
   formatCurrency,
@@ -43,8 +45,10 @@ function ResultsPanel({
   const steps = [];
   if (showBudgetResults) steps.push({ key: 'budget', label: 'Budget' });
   if (showDebtResults) steps.push({ key: 'debt', label: 'Debt Payoff' });
+  if (showSavingsResults) steps.push({ key: 'savings', label: 'Savings Projections' });
   if (showNetWorthResults) steps.push({ key: 'networth', label: 'Net Worth' });
   if (showRetirementResults) steps.push({ key: 'retirement', label: 'Retirement' });
+  if (showFOOResults) steps.push({ key: 'foo', label: 'Order of Operations' });
   if (showGuidelinesResults) steps.push({ key: 'guidelines', label: 'Guidelines' });
   steps.push({ key: 'dashboard', label: 'Dashboard' });
 
@@ -139,7 +143,11 @@ function ResultsPanel({
                 <h3>{item.label}</h3>
                 <p>Budget: {formatCurrency(item.budget)}</p>
                 <p>Spent: {formatCurrency(item.actual)}</p>
-                <p className={`budget-status ${item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}`}>
+                <p className={`budget-status ${
+                  item.category === 'save'
+                    ? (item.status === 'Under Budget' ? 'status-over' : item.status === 'Over Budget' ? 'status-under' : 'status-at')
+                    : (item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at')
+                }`}>
                   {item.status}
                 </p>
               </article>
@@ -370,6 +378,143 @@ function ResultsPanel({
               );
             })()}
           </div>
+
+          <br></br>
+
+            {calculationResult.totalMonthlyDebtPayments > 0 && (
+            <div className="debt-ratio-section">
+              <h4>Debt-to-Income Ratio</h4>
+              <div className="debt-ratio-content">
+                <div className="debt-ratio-metric">
+                  <p>Monthly Debt Payments</p>
+                  <strong>{formatCurrency(calculationResult.totalMonthlyDebtPayments)}</strong>
+                </div>
+                <div className="debt-ratio-metric">
+                  <p>DTI Ratio</p>
+                  <strong className={
+                    calculationResult.debtToIncomeRatio > 43 ? 'status-over' :
+                    calculationResult.debtToIncomeRatio > 36 ? 'status-warning' :
+                    'status-under'
+                  }>
+                    {calculationResult.debtToIncomeRatio.toFixed(1)}%
+                  </strong>
+                </div>
+              </div>
+              <p className="debt-ratio-guide">
+                {calculationResult.debtToIncomeRatio <= 36 && "Excellent! Your DTI is in a healthy range."}
+                {calculationResult.debtToIncomeRatio > 36 && calculationResult.debtToIncomeRatio <= 43 && "Fair DTI. Consider reducing debt for better financial flexibility."}
+                {calculationResult.debtToIncomeRatio > 43 && "High DTI. Lenders may view this as risky. Focus on debt reduction."}
+              </p>
+            </div>
+          )}
+
+        </section>
+      )}
+
+      {/* Savings Projections Step */}
+      {currentStep?.key === 'savings' && calculationResult.savingsProjection && (
+        <section aria-label="Savings projections timeline">
+          <div className="savings-header">
+            <h3>Savings Projections</h3>
+            {!calculationResult.savingsProjection.hasSavingsAccount && (
+              <div className="savings-recommendation">
+                <svg className="info-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p>Consider opening a high-yield savings account at {calculationResult.savingsProjection.recommendedRate.toFixed(2)}% APY</p>
+              </div>
+            )}
+            {calculationResult.savingsProjection.hasSavingsAccount && calculationResult.savingsProjection.bestSavingsAccount && (
+              <div className="savings-recommendation success">
+                <svg className="check-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p>Using {calculationResult.savingsProjection.bestSavingsAccount.label} at {calculationResult.savingsProjection.bestSavingsAccount.interestRate.toFixed(2)}% APY</p>
+              </div>
+            )}
+          </div>
+
+          <div className="savings-summary">
+            <div className="timeline-summary-card">
+              <p>Monthly savings contribution</p>
+              <strong>{formatCurrency(calculationResult.savingsProjection.monthlySavingsContribution)}</strong>
+            </div>
+            <div className="timeline-summary-card">
+              <p>Total savings goals</p>
+              <strong>{calculationResult.savingsProjection.totalGoals}</strong>
+            </div>
+          </div>
+
+          {calculationResult.savingsProjection.monthlySavingsContribution <= 0 && (
+            <div className="savings-warning">
+              <p>No monthly savings available for goals. Increase your savings budget to start working toward your goals.</p>
+            </div>
+          )}
+
+          {calculationResult.savingsProjection.timeline.length > 0 && (
+            <div className="savings-timeline">
+              <h4>Goal Timeline (by priority)</h4>
+              <div className="savings-timeline-list">
+                {calculationResult.savingsProjection.timeline.map((goal, index) => {
+                  const monthsToComplete = goal.monthsToComplete;
+                  const years = Math.floor(monthsToComplete / 12);
+                  const months = monthsToComplete % 12;
+                  const timeLabel = goal.alreadyFunded 
+                    ? 'Fully funded' 
+                    : years > 0 
+                      ? `${years}y ${months}m` 
+                      : `${months}m`;
+
+                  const completionDate = new Date();
+                  completionDate.setMonth(completionDate.getMonth() + goal.totalMonths);
+                  const completionLabel = goal.alreadyFunded 
+                    ? 'Already achieved' 
+                    : completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+                  return (
+                    <div key={goal.id} className="savings-timeline-item">
+                      <div className="savings-goal-header">
+                        <div className="savings-goal-info">
+                          <span className="goal-priority">#{goal.priority}</span>
+                          <strong>{goal.label}</strong>
+                        </div>
+                        <span className="goal-amount">{formatCurrency(goal.amountNeeded)}</span>
+                      </div>
+                      <div className="savings-goal-progress">
+                        <div className="progress-bar">
+                          <div 
+                            className="progress-fill"
+                            style={{
+                              width: `${Math.min((goal.amountSaved / goal.amountNeeded) * 100, 100)}%`
+                            }}
+                          />
+                        </div>
+                        <span className="progress-text">
+                          {formatCurrency(goal.amountSaved)} saved
+                        </span>
+                      </div>
+                      <div className="savings-goal-timeline">
+                        <div className="timeline-metric">
+                          <p>Time to complete</p>
+                          <strong className={goal.alreadyFunded ? 'status-under' : ''}>{timeLabel}</strong>
+                        </div>
+                        <div className="timeline-metric">
+                          <p>Completion date</p>
+                          <strong>{completionLabel}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {calculationResult.savingsProjection.timeline.length === 0 && (
+            <div className="savings-empty">
+              <p>No savings goals defined. Add goals in the Savings Goals section to see projections.</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -611,6 +756,351 @@ function ResultsPanel({
         </section>
       )}
 
+      {/* Financial Order of Operations Step */}
+      {currentStep?.key === 'foo' && calculationResult.financialOrderOfOperations && (
+        <section aria-label="Financial Order of Operations">
+          <div className="foo-header">
+            <h3>Financial Order of Operations</h3>
+            <p className="foo-subtitle">Follow these steps to build a strong financial foundation</p>
+          </div>
+
+          <div className="foo-current-step">
+            <div className="current-step-badge">
+              Step {calculationResult.financialOrderOfOperations.currentStep}
+            </div>
+            <h4>
+              {calculationResult.financialOrderOfOperations.steps[calculationResult.financialOrderOfOperations.currentStep - 1]?.title}
+            </h4>
+            <p className="current-step-description">
+              {calculationResult.financialOrderOfOperations.steps[calculationResult.financialOrderOfOperations.currentStep - 1]?.description}
+            </p>
+          </div>
+
+          <div className="foo-steps-list">
+            {calculationResult.financialOrderOfOperations.steps.map((step) => (
+              <div
+                key={step.number}
+                className={`foo-step-card ${step.completed ? 'completed' : ''} ${step.number === calculationResult.financialOrderOfOperations.currentStep ? 'current' : ''}`}
+              >
+                <div className="foo-step-header">
+                  <div className="foo-step-number">
+                    {step.completed ? (
+                      <svg className="check-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <span>{step.number}</span>
+                    )}
+                  </div>
+                  <div className="foo-step-info">
+                    <h5>{step.title}</h5>
+                    <p>{step.description}</p>
+                  </div>
+                </div>
+
+                <div className="foo-step-details">
+                  {step.number === 1 && (
+                    <>
+                      <div className="detail-row">
+                        <span>Total Savings Balance:</span>
+                        <strong>{formatCurrency(step.details.totalSavingsBalance)}</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Deductible Coverage Needed:</span>
+                        <strong>{formatCurrency(step.details.lowestDeductible)}</strong>
+                      </div>
+                      {!step.completed && step.details.remaining > 0 && (
+                        <div className="detail-row highlight">
+                          <span>Still Need:</span>
+                          <strong className="status-over">{formatCurrency(step.details.remaining)}</strong>
+                        </div>
+                      )}
+                      {step.completed && (
+                        <div className="completion-badge">
+                          ✓ Deductible covered!
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 2 && (
+                    <>
+                      <div className="detail-row">
+                        <span>Retirement Contributions:</span>
+                        <strong>{step.details.totalRetirementContributions}</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>With Max Match:</span>
+                        <strong>{step.details.contributionsWithMaxMatch}</strong>
+                      </div>
+                      {!step.completed && step.details.totalRetirementContributions > 0 && (
+                        <div className="detail-row highlight">
+                          <span>Need to maximize:</span>
+                          <strong className="status-over">
+                            {step.details.totalRetirementContributions - step.details.contributionsWithMaxMatch} account(s)
+                          </strong>
+                        </div>
+                      )}
+                      {step.completed && (
+                        <div className="completion-badge">
+                          ✓ Getting full employer match!
+                        </div>
+                      )}
+                      {step.details.totalRetirementContributions === 0 && (
+                        <p className="no-data-message">No retirement contributions set up yet</p>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 3 && (
+                    <>
+                      {step.details.highInterestDebts.length > 0 ? (
+                        <>
+                          <div className="detail-row">
+                            <span>High-Interest Debts:</span>
+                            <strong className="status-over">{step.details.highInterestDebts.length}</strong>
+                          </div>
+                          <div className="detail-row">
+                            <span>Total Balance:</span>
+                            <strong className="status-over">{formatCurrency(step.details.totalHighInterestDebt)}</strong>
+                          </div>
+                          <div className="high-interest-debt-list">
+                            {step.details.highInterestDebts.map((debt) => (
+                              <div key={debt.id} className="debt-item">
+                                <span>{debt.label}</span>
+                                <span>{debt.interestRate.toFixed(2)}% • {formatCurrency(debt.balance)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="completion-badge">
+                          ✓ No high-interest debt!
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 4 && (
+                    <>
+                      <div className="detail-row">
+                        <span>Monthly Needs Expenses:</span>
+                        <strong>{formatCurrency(step.details.monthlyNeedsExpenses)}</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>6-Month Emergency Fund Target:</span>
+                        <strong>{formatCurrency(step.details.emergencyFundTarget)}</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Current Savings Balance:</span>
+                        <strong>{formatCurrency(step.details.totalSavingsBalance)}</strong>
+                      </div>
+                      {!step.completed && step.details.remaining > 0 && (
+                        <div className="detail-row highlight">
+                          <span>Still Need:</span>
+                          <strong className="status-over">{formatCurrency(step.details.remaining)}</strong>
+                        </div>
+                      )}
+                      {step.completed && (
+                        <div className="completion-badge">
+                          ✓ Emergency fund fully funded!
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 5 && (
+                    <>
+                      {step.details.totalRothContributions > 0 ? (
+                        <>
+                          <div className="detail-row">
+                            <span>ROTH/HSA Contributions:</span>
+                            <strong>{step.details.totalRothContributions}</strong>
+                          </div>
+                          <div className="detail-row">
+                            <span>Monthly Contribution Amount:</span>
+                            <strong>{formatCurrency(step.details.monthlyRothAmount)}</strong>
+                          </div>
+                          <div className="roth-contribution-list">
+                            {step.details.rothContributions.map((contrib) => (
+                              <div key={contrib.id} className="contribution-item">
+                                <span>{contrib.label}</span>
+                                <span>{formatCurrency(parseAmount(contrib.monthlyContribution))}/mo</span>
+                              </div>
+                            ))}
+                          </div>
+                          {step.completed && (
+                            <div className="completion-badge">
+                              ✓ Contributing to tax-advantaged accounts!
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="no-data-message">
+                          No ROTH IRA or HSA contributions set up yet. Consider opening these tax-advantaged accounts!
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 6 && (
+                    <>
+                      <div className="detail-row">
+                        <span>Retirement On Track:</span>
+                        <strong className={step.details.isOnTrack ? 'status-under' : 'status-over'}>
+                          {step.details.isOnTrack ? 'Yes ✓' : 'No ✗'}
+                        </strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Monthly Income:</span>
+                        <strong>{formatCurrency(step.details.monthlyIncome)}</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Retirement Contribution (incl. match):</span>
+                        <strong>{formatCurrency(step.details.monthlyRetirementContribution)}</strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Contribution Percentage:</span>
+                        <strong className={step.details.retirementContributionPercentage >= 25 ? 'status-under' : 'status-over'}>
+                          {step.details.retirementContributionPercentage.toFixed(1)}%
+                        </strong>
+                      </div>
+                      {!step.completed && (
+                        <div className="detail-row highlight">
+                          <span>Target (25% of monthly income):</span>
+                          <strong className="status-over">{formatCurrency(step.details.targetContribution)}</strong>
+                        </div>
+                      )}
+                      {step.completed && (
+                        <div className="completion-badge">
+                          ✓ Maxing out retirement contributions!
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 7 && (
+                    <>
+                      <div className="detail-row">
+                        <span>Savings Budget Met:</span>
+                        <strong className={step.details.saveBudgetMet ? 'status-under' : 'status-over'}>
+                          {step.details.saveBudgetMet ? 'Yes ✓' : 'No ✗'}
+                        </strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Save Actual / Allocated:</span>
+                        <strong>
+                          {formatCurrency(step.details.saveActual)} / {formatCurrency(step.details.saveAllocated)}
+                        </strong>
+                      </div>
+                      <div className="detail-row">
+                        <span>Investment Contributions:</span>
+                        <strong>{step.details.totalInvestmentContributions}</strong>
+                      </div>
+                      {step.details.totalInvestmentContributions > 0 && (
+                        <>
+                          <div className="detail-row">
+                            <span>Monthly Investment Amount:</span>
+                            <strong>{formatCurrency(step.details.monthlyInvestmentAmount)}</strong>
+                          </div>
+                          <div className="roth-contribution-list">
+                            {step.details.investmentContributions.map((contrib) => (
+                              <div key={contrib.id} className="contribution-item">
+                                <span>{contrib.label}</span>
+                                <span>{formatCurrency(parseAmount(contrib.monthlyContribution))}/mo</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                      {step.completed && (
+                        <div className="completion-badge">
+                          ✓ Building wealth through investments!
+                        </div>
+                      )}
+                      {!step.completed && !step.details.saveBudgetMet && (
+                        <div className="no-data-message">
+                          Focus on meeting your savings budget first before investing in taxable accounts.
+                        </div>
+                      )}
+                      {!step.completed && step.details.saveBudgetMet && step.details.totalInvestmentContributions === 0 && (
+                        <div className="no-data-message">
+                          Great job meeting your savings budget! Now add an investment account to continue building wealth.
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 8 && (
+                    <>
+                      {step.details.totalSavingsGoals > 0 ? (
+                        <>
+                          <div className="detail-row">
+                            <span>Active Savings Goals:</span>
+                            <strong>{step.details.totalSavingsGoals}</strong>
+                          </div>
+                          <div className="detail-row">
+                            <span>Monthly Savings Goal Amount:</span>
+                            <strong>{formatCurrency(step.details.monthlySavingsGoalAmount)}</strong>
+                          </div>
+                          <div className="roth-contribution-list">
+                            {step.details.activeSavingsGoals.map((goal) => (
+                              <div key={goal.id} className="contribution-item">
+                                <span>{goal.label}</span>
+                                <span>{formatCurrency(parseAmount(goal.monthlyContribution))}/mo</span>
+                              </div>
+                            ))}
+                          </div>
+                          {step.completed && (
+                            <div className="completion-badge">
+                              ✓ Planning for future expenses!
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="no-data-message">
+                          Set up savings goals for upcoming expenses like vacations, home repairs, or major purchases!
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {step.number === 9 && (
+                    <>
+                      {step.details.totalDebts > 0 ? (
+                        <>
+                          <div className="detail-row">
+                            <span>Remaining Debt:</span>
+                            <strong className="status-over">{formatCurrency(step.details.totalRemainingDebt)}</strong>
+                          </div>
+                          <div className="detail-row">
+                            <span>Number of Debts:</span>
+                            <strong>{step.details.totalDebts}</strong>
+                          </div>
+                          {!step.completed && (
+                            <div className="no-data-message">
+                              Keep making payments to eliminate all remaining debt and achieve complete financial freedom!
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="completion-badge">
+                          ✓ Completely debt-free! You've achieved financial freedom!
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="foo-footer">
+            <p>Complete each step in order to build a solid financial foundation!</p>
+          </div>
+        </section>
+      )}
+
       {/* Guidelines Results Step */}
       {currentStep?.key === 'guidelines' && (
         <section aria-label="Guidelines and limits">
@@ -650,7 +1140,11 @@ function ResultsPanel({
                 {calculationResult.categorySummaries.map((item) => (
                   <div key={item.category} className="dashboard-category-item">
                     <span>{item.label}</span>
-                    <span className={item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at'}>
+                    <span className={
+                      item.category === 'save'
+                        ? (item.status === 'Under Budget' ? 'status-over' : item.status === 'Over Budget' ? 'status-under' : 'status-at')
+                        : (item.status === 'Over Budget' ? 'status-over' : item.status === 'Under Budget' ? 'status-under' : 'status-at')
+                    }>
                       {formatCurrency(item.actual)} / {formatCurrency(item.budget)}
                     </span>
                   </div>
@@ -696,6 +1190,51 @@ function ResultsPanel({
                 onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'debt'))}
               >
                 View Debt Details →
+              </button>
+            </section>
+          )}
+
+          {showSavingsResults && calculationResult.savingsProjection && calculationResult.savingsProjection.totalGoals > 0 && (
+            <section className="dashboard-section" aria-label="Savings summary">
+              <h3>Savings Projections</h3>
+              <div className="summary-metrics">
+                <div className="metric-card">
+                  <p>Monthly Savings</p>
+                  <strong>{formatCurrency(calculationResult.savingsProjection.monthlySavingsContribution)}</strong>
+                </div>
+                <div className="metric-card">
+                  <p>Total Goals</p>
+                  <strong>{calculationResult.savingsProjection.totalGoals}</strong>
+                </div>
+              </div>
+              <div className="dashboard-savings-list">
+                {calculationResult.savingsProjection.timeline.slice(0, 3).map((goal) => {
+                  const monthsToComplete = goal.monthsToComplete;
+                  const years = Math.floor(monthsToComplete / 12);
+                  const months = monthsToComplete % 12;
+                  const timeLabel = goal.alreadyFunded 
+                    ? 'Funded' 
+                    : years > 0 
+                      ? `${years}y ${months}m` 
+                      : `${months}m`;
+
+                  return (
+                    <div key={goal.id} className="dashboard-savings-item">
+                      <span>{goal.label}</span>
+                      <span>{timeLabel}</span>
+                    </div>
+                  );
+                })}
+                {calculationResult.savingsProjection.timeline.length > 3 && (
+                  <p className="dashboard-more">+{calculationResult.savingsProjection.timeline.length - 3} more</p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'savings'))}
+              >
+                View Savings Details →
               </button>
             </section>
           )}
@@ -768,6 +1307,38 @@ function ResultsPanel({
             </section>
           )}
 
+          {showFOOResults && calculationResult.financialOrderOfOperations && (
+            <section className="dashboard-section" aria-label="Financial Order of Operations summary">
+              <h3>Financial Order of Operations</h3>
+              <div className="foo-dashboard-status">
+                <div className="foo-dashboard-current">
+                  <span className="dashboard-step-badge">Step {calculationResult.financialOrderOfOperations.currentStep}</span>
+                  <strong>
+                    {calculationResult.financialOrderOfOperations.steps[calculationResult.financialOrderOfOperations.currentStep - 1]?.title}
+                  </strong>
+                </div>
+                <div className="foo-dashboard-progress">
+                  {calculationResult.financialOrderOfOperations.steps.map((step) => (
+                    <div
+                      key={step.number}
+                      className={`foo-progress-dot ${step.completed ? 'completed' : ''} ${step.number === calculationResult.financialOrderOfOperations.currentStep ? 'current' : ''}`}
+                      title={step.title}
+                    >
+                      {step.number}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="dashboard-detail-btn"
+                onClick={() => handleJumpToStep(steps.findIndex(s => s.key === 'foo'))}
+              >
+                View Order of Operations →
+              </button>
+            </section>
+          )}
+
           {showGuidelinesResults && (
             <section className="dashboard-section" aria-label="Guidelines summary">
               <h3>Financial Guidelines</h3>
@@ -804,14 +1375,16 @@ function ResultsPanel({
         <span className="results-step-indicator">
           {activeResultStep + 1} / {steps.length}
         </span>
-        <button
-          type="button"
-          className="results-nav-btn next"
-          onClick={handleNext}
-          disabled={isLastStep}
-        >
-          Next →
-        </button>
+        {currentStep?.key !== 'dashboard' && (
+          <button
+            type="button"
+            className="results-nav-btn next"
+            onClick={handleNext}
+            disabled={isLastStep}
+          >
+            Next →
+          </button>
+        )}
       </div>
     </section>
   );

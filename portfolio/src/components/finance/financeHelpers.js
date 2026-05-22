@@ -11,7 +11,7 @@ export const segmentPalette = {
   save: ['#22c55e', '#4ade80', '#86efac', '#bbf7d0']
 };
 
-export const createItem = (label, frequency = 'monthly', category = 'needs', assetType = 'checking account', isDebtPayment = false, linkedDebtId = null) => ({
+export const createItem = (label, frequency = 'monthly', category = 'needs', assetType = 'checking account', isDebtPayment = false, linkedDebtId = null, isRetirementContribution = false, linkedContributionId = null) => ({
   id: `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   label,
   value: '',
@@ -24,7 +24,9 @@ export const createItem = (label, frequency = 'monthly', category = 'needs', ass
   interestRate: '',
   debtType: 'other',
   isDebtPayment,
-  linkedDebtId
+  linkedDebtId,
+  isRetirementContribution,
+  linkedContributionId
 });
 
 export const createContributionItem = (asset, fallbackIndex = 0) => ({

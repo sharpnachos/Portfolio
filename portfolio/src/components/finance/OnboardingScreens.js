@@ -1,4 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+const tMoneySayings = [
+  "Having money isn't everything, not having it is! 💸",
+  "50 told me go head switch the style up, and if they hate then let em hate and watch the money pile up! 🤑",
+  "You little fuck I got money stacks bigger than you.",
+  "Half a mil' in twenties like a billion where I'm from.",
+  "CASH RULES EVERYTHING AROUND ME. C.R.E.A.M. GET THE MONEY. DOLLA DOLLA BILL YA'LL",
+  "I ain't Curren$y but if there ain't money in my name",
+  "Money trees is the perfect place for shade and that's just how I feel. 💰",
+  "A dollar might turn to a million and we all rich that's just how I feel",
+  "shit they say the best things in life are free!",
+  "I got 1-2-3-4-5-6-7-8 M's in my back account, yeah (on God)"
+];
 
 function OnboardingScreens({
   hasStarted,
@@ -20,6 +33,47 @@ function OnboardingScreens({
 }) {
   const isAllOptionSelected = selectedHelpOptions.includes(allOptionLabel);
   const [activeHousingField, setActiveHousingField] = useState(null);
+  const [showSpeechBubble, setShowSpeechBubble] = useState(false);
+  const [currentSaying, setCurrentSaying] = useState('');
+
+  // T-Money Easter Egg: Random speech bubble every 5-30 minutes
+  useEffect(() => {
+    if (!hasStarted) {
+      return;
+    }
+
+    let bubbleTimeoutId;
+    let hideTimeoutId;
+
+    const scheduleNextBubble = () => {
+      // Random time between 5-30 minutes (in milliseconds)
+      const minTime = 5 * 60 * 1000; // 5 minutes
+      const maxTime = 30 * 60 * 1000; // 30 minutes
+      const randomTime = Math.random() * (maxTime - minTime) + minTime;
+
+      bubbleTimeoutId = setTimeout(() => {
+        // Pick a random saying
+        const randomSaying = tMoneySayings[Math.floor(Math.random() * tMoneySayings.length)];
+        setCurrentSaying(randomSaying);
+        setShowSpeechBubble(true);
+
+        // Hide after 10 seconds
+        hideTimeoutId = setTimeout(() => {
+          setShowSpeechBubble(false);
+        }, 10000);
+
+        // Schedule next bubble
+        scheduleNextBubble();
+      }, randomTime);
+    };
+
+    scheduleNextBubble();
+
+    return () => {
+      clearTimeout(bubbleTimeoutId);
+      clearTimeout(hideTimeoutId);
+    };
+  }, [hasStarted]);
 
   const parseNumeric = (rawValue) => {
     const normalized = String(rawValue ?? '').replace(/[^0-9.-]/g, '');
@@ -49,19 +103,28 @@ function OnboardingScreens({
   return (
     <>
       {hasStarted && (
-        <button
-          type="button"
-          className="tmoney-brand"
-          aria-label="T-Money $$$ Toolbox"
-          onClick={() => {
-            setHasStarted(false);
-            setShowHelpChooser(false);
-            setShowHousingChooser(false);
-          }}
-        >
-          <span className="tmoney-brand-emoji" aria-hidden="true">💸</span>
-          <span className="tmoney-brand-text">T-Money $$$ Toolbox</span>
-        </button>
+        <div className="tmoney-brand-container">
+          <button
+            type="button"
+            className="tmoney-brand"
+            aria-label="T-Money $$$ Toolbox"
+            onClick={() => {
+              setHasStarted(false);
+              setShowHelpChooser(false);
+              setShowHousingChooser(false);
+            }}
+          >
+            <span className="tmoney-brand-emoji" aria-hidden="true">💸</span>
+            <span className="tmoney-brand-text">T-Money $$$ Toolbox</span>
+          </button>
+          {showSpeechBubble && (
+            <div className="tmoney-speech-bubble">
+              <div className="speech-bubble-content">
+                <strong>T-Money says:</strong> {currentSaying}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {!hasStarted && !showHelpChooser && !showHousingChooser && (
