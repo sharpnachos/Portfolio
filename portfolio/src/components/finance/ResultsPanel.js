@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 function ResultsPanel({
   calculationResult,
@@ -36,10 +36,170 @@ function ResultsPanel({
   guidelines,
   retirementRateOfReturn,
   setRetirementRateOfReturn,
-  onEditInputs
+  retirementAge,
+  setRetirementAge,
+  maxAdditionalSavings,
+  additionalSavings,
+  setAdditionalSavings,
+  initialActiveStep = 0,
+  onEditInputs,
+  onResultStepChange
 }) {
   // Multi-step navigation state
   const [activeResultStep, setActiveResultStep] = useState(0);
+  const [showPayoffMethodInfo, setShowPayoffMethodInfo] = useState(false);
+  const [activeDebtPaymentField, setActiveDebtPaymentField] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const payoffMethodInfoRef = useRef(null);
+
+  // Handle click outside to close payoff method info popup
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showPayoffMethodInfo && payoffMethodInfoRef.current && !payoffMethodInfoRef.current.contains(event.target)) {
+        setShowPayoffMethodInfo(false);
+      }
+    };
+
+    if (showPayoffMethodInfo) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPayoffMethodInfo]);
+
+  // Update activeResultStep when initialActiveStep changes (e.g., welcome back screen)
+  useEffect(() => {
+    if (initialActiveStep > 0) {
+      setActiveResultStep(initialActiveStep);
+    }
+  }, [initialActiveStep]);
+
+  // Notify parent component when activeResultStep changes
+  useEffect(() => {
+    if (onResultStepChange) {
+      onResultStepChange(activeResultStep);
+    }
+  }, [activeResultStep, onResultStepChange]);
+
+  // Calculate projected retirement value based on current slider values
+  const calculateProjectedRetirementValue = () => {
+    if (!calculationResult?.retirementTracking) {
+      return 0;
+    }
+
+    const {
+      currentAge,
+      totalRetirementBalance,
+      monthlyRetirementContribution
+    } = calculationResult.retirementTracking;
+
+    const yearsToRetirement = Math.max(0, retirementAge - currentAge);
+    const monthsToRetirement = yearsToRetirement * 12;
+    const monthlyRate = retirementRateOfReturn / 100 / 12;
+    
+    let projectedValue = totalRetirementBalance;
+    
+    if (monthsToRetirement > 0 && monthlyRetirementContribution > 0) {
+      // Future value of current balance
+      const futureValueOfBalance = totalRetirementBalance * Math.pow(1 + monthlyRate, monthsToRetirement);
+      
+      // Future value of monthly contributions (annuity)
+      const futureValueOfContributions = monthlyRate > 0
+        ? monthlyRetirementContribution * ((Math.pow(1 + monthlyRate, monthsToRetirement) - 1) / monthlyRate)
+        : monthlyRetirementContribution * monthsToRetirement;
+      
+      projectedValue = futureValueOfBalance + futureValueOfContributions;
+    } else if (monthsToRetirement > 0) {
+      projectedValue = totalRetirementBalance * Math.pow(1 + monthlyRate, monthsToRetirement);
+    }
+    
+    return projectedValue;
+  };
+
+  const projectedRetirementValue = calculateProjectedRetirementValue();
+  const yearsToRetirement = calculationResult?.retirementTracking 
+    ? Math.max(0, retirementAge - calculationResult.retirementTracking.currentAge)
+    : 0;
+
+  // Calculate savings timeline based on current slider values
+  const calculateSavingsTimeline = () => {
+    if (!calculationResult?.savingsProjection) {
+      return [];
+    }
+
+    const {
+      baseMonthlySavingsContribution,
+      recommendedRate,
+      timeline: originalTimeline
+    } = calculationResult.savingsProjection;
+
+    // additionalSavings slider represents total monthly savings (not an addition)
+    const adjustedMonthlySavings = additionalSavings !== null ? additionalSavings : baseMonthlySavingsContribution;
+    
+    // Recalculate timeline with adjusted savings
+    const savingsTimeline = [];
+    let cumulativeSavings = 0;
+    let previousMonths = 0;
+
+    originalTimeline.forEach((goal) => {
+      const stillNeeded = Math.max(goal.amountNeeded - goal.amountSaved - cumulativeSavings, 0);
+      
+      if (stillNeeded <= 0) {
+        savingsTimeline.push({
+          ...goal,
+          monthsToComplete: 0,
+          totalMonths: previousMonths,
+          completionAmount: goal.amountNeeded,
+          alreadyFunded: true
+        });
+        cumulativeSavings += Math.max(goal.amountNeeded - goal.amountSaved, 0);
+        return;
+      }
+
+      if (adjustedMonthlySavings <= 0) {
+        savingsTimeline.push({
+          ...goal,
+          monthsToComplete: Infinity,
+          totalMonths: Infinity,
+          completionAmount: goal.amountSaved,
+          alreadyFunded: false
+        });
+        return;
+      }
+
+      const monthlyRate = recommendedRate / 100 / 12;
+      let balance = goal.amountSaved + cumulativeSavings;
+      let months = 0;
+      const maxMonths = 600;
+
+      while (balance < goal.amountNeeded && months < maxMonths) {
+        balance += balance * monthlyRate;
+        balance += adjustedMonthlySavings;
+        months += 1;
+      }
+
+      savingsTimeline.push({
+        ...goal,
+        monthsToComplete: months,
+        totalMonths: previousMonths + months,
+        completionAmount: balance,
+        alreadyFunded: false
+      });
+
+      cumulativeSavings += stillNeeded;
+      previousMonths += months;
+    });
+
+    return savingsTimeline;
+  };
+
+  const savingsTimeline = calculateSavingsTimeline();
+  const baseMonthlySavingsContribution = calculationResult?.savingsProjection?.baseMonthlySavingsContribution || 0;
+  const projectedMonthlySavings = additionalSavings !== null 
+    ? additionalSavings 
+    : baseMonthlySavingsContribution;
 
   // Define steps based on what should be shown
   const steps = [];
@@ -52,19 +212,21 @@ function ResultsPanel({
   if (showGuidelinesResults) steps.push({ key: 'guidelines', label: 'Guidelines' });
   steps.push({ key: 'dashboard', label: 'Dashboard' });
 
-  const currentStep = steps[activeResultStep];
-  const isFirstStep = activeResultStep === 0;
-  const isLastStep = activeResultStep === steps.length - 1;
+  // Clamp activeResultStep to valid range
+  const clampedActiveStep = Math.min(activeResultStep, steps.length - 1);
+  const currentStep = steps[clampedActiveStep];
+  const isFirstStep = clampedActiveStep === 0;
+  const isLastStep = clampedActiveStep === steps.length - 1;
 
   const handleNext = () => {
     if (!isLastStep) {
-      setActiveResultStep(activeResultStep + 1);
+      setActiveResultStep(clampedActiveStep + 1);
     }
   };
 
   const handlePrevious = () => {
     if (!isFirstStep) {
-      setActiveResultStep(activeResultStep - 1);
+      setActiveResultStep(clampedActiveStep - 1);
     }
   };
 
@@ -72,17 +234,137 @@ function ResultsPanel({
     setActiveResultStep(index);
   };
 
+  // Check if all FOO steps are completed
+  const allFOOStepsCompleted = calculationResult?.financialOrderOfOperations?.currentStep === 10;
+
+  // Auto-show celebration when all FOO steps are completed
+  useEffect(() => {
+    if (allFOOStepsCompleted && currentStep?.key === 'foo' && !showCelebration) {
+      // Small delay to let the page render first
+      const timer = setTimeout(() => {
+        setShowCelebration(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [allFOOStepsCompleted, currentStep, showCelebration]);
+
   return (
     <section className="results-panel relative rounded-2xl border border-emerald-100/80 bg-white/92 shadow-glow backdrop-blur-sm" aria-label="Results">
+      {/* Fireworks Celebration Modal */}
+      {showCelebration && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            paddingTop: '5rem',
+            overflowY: 'auto',
+            animation: 'fadeIn 0.3s ease-in'
+          }}
+          onClick={() => setShowCelebration(false)}
+        >
+          {/* Congratulations Message */}
+          <div
+            style={{
+              position: 'relative',
+              background: 'linear-gradient(135deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)',
+              borderRadius: '1rem',
+              padding: '3rem 2rem',
+              maxWidth: '600px',
+              width: '90%',
+              textAlign: 'center',
+              boxShadow: '0 0 60px rgba(255, 215, 0, 0.8), 0 0 100px rgba(255, 215, 0, 0.6), 0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              animation: 'scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), glow 2s ease-in-out infinite',
+              border: '3px solid #ffed4e'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>🎉</div>
+            <h2 style={{ margin: '0 0 1rem 0', fontSize: '2.5rem', color: '#854d0e', fontWeight: 'bold', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+              Congratulations!
+            </h2>
+            <p style={{ margin: '0 0 2rem 0', fontSize: '1.25rem', color: '#713f12', lineHeight: '1.6', fontWeight: '500' }}>
+              You've completed all 9 steps of the Financial Order of Operations!
+              <br />
+              <span style={{ fontSize: '1rem', color: '#92400e' }}>You are killing it dude! LETS GOOOOOOOOO!!!!!</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCelebration(false)}
+              style={{
+                padding: '0.75rem 2rem',
+                backgroundColor: '#92400e',
+                color: '#fef3c7',
+                border: 'none',
+                borderRadius: '0.5rem',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#78350f';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#92400e';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              Thanks, I know! 😎
+            </button>
+          </div>
+
+          {/* Inline Keyframe Styles */}
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes scaleIn {
+              from {
+                opacity: 0;
+                transform: scale(0.8);
+              }
+              to {
+                opacity: 1;
+                transform: scale(1);
+              }
+            }
+            @keyframes glow {
+              0%, 100% {
+                box-shadow: 0 0 60px rgba(255, 215, 0, 0.8), 0 0 100px rgba(255, 215, 0, 0.6), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+              }
+              50% {
+                box-shadow: 0 0 80px rgba(255, 215, 0, 1), 0 0 120px rgba(255, 215, 0, 0.8), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+              }
+            }
+          `}</style>
+        </div>
+      )}
+
       <div className="results-header">
         <h2>{currentStep?.label || 'Results'}</h2>
-        <button
-          type="button"
-          className="add-field-btn"
-          onClick={onEditInputs}
-        >
-          Edit Inputs
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <span style={{ fontSize: '0.75rem', opacity: 0.6, fontStyle: 'italic' }}>
+            This is not financial advice
+          </span>
+          <button
+            type="button"
+            className="add-field-btn"
+            onClick={onEditInputs}
+          >
+            Edit Inputs
+          </button>
+        </div>
       </div>
 
       {/* Step indicator */}
@@ -91,7 +373,7 @@ function ResultsPanel({
           <button
             key={step.key}
             type="button"
-            className={`results-step-btn ${index === activeResultStep ? 'active' : ''} ${index < activeResultStep ? 'completed' : ''}`}
+            className={`results-step-btn ${index === clampedActiveStep ? 'active' : ''} ${index < clampedActiveStep ? 'completed' : ''}`}
             onClick={() => handleJumpToStep(index)}
           >
             {step.label}
@@ -155,7 +437,7 @@ function ResultsPanel({
           </div>
 
           <div className="chart-wrap" aria-label="Expense category budget bars">
-            <h3>Category Budget Bars (Click segments for item details)</h3>
+            <h3>Budget Category Breakdown (Click a segment for details)</h3>
             <div className="category-bars">
               {calculationResult.categorySummaries.map((item) => (
                 <div className="category-bar-card" key={item.category}>
@@ -256,22 +538,107 @@ function ResultsPanel({
       {currentStep?.key === 'debt' && (
         <section aria-label="Debt payoff timeline">
           <div className="debt-timeline-header">
-            <h3>Debt Payoff Timeline</h3>
-            <div className="payoff-method-toggle" role="group" aria-label="Payoff method">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3>Debt Payoff Timeline</h3>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
+              <div className="payoff-method-toggle" role="group" aria-label="Payoff method">
+                <button
+                  type="button"
+                  className={`method-btn ${payoffMethod === 'snowball' ? 'active' : ''}`}
+                  onClick={() => setPayoffMethod('snowball')}
+                >
+                  Snowball
+                </button>
+                <button
+                  type="button"
+                  className={`method-btn ${payoffMethod === 'avalanche' ? 'active' : ''}`}
+                  onClick={() => setPayoffMethod('avalanche')}
+                >
+                  Avalanche
+                </button>
+              </div>
               <button
                 type="button"
-                className={`method-btn ${payoffMethod === 'snowball' ? 'active' : ''}`}
-                onClick={() => setPayoffMethod('snowball')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPayoffMethodInfo(!showPayoffMethodInfo);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: '#10b981',
+                  fontSize: '1rem',
+                  opacity: 0.7,
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                aria-label="More information about payoff methods"
               >
-                Snowball
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
               </button>
-              <button
-                type="button"
-                className={`method-btn ${payoffMethod === 'avalanche' ? 'active' : ''}`}
-                onClick={() => setPayoffMethod('avalanche')}
-              >
-                Avalanche
-              </button>
+              {showPayoffMethodInfo && (
+                <div
+                  ref={payoffMethodInfoRef}
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: '0',
+                    marginTop: '0.5rem',
+                    backgroundColor: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.5rem',
+                    padding: '1rem',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                    zIndex: 1000,
+                    minWidth: '350px',
+                    maxWidth: '450px'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <h4 style={{ margin: '0', fontSize: '0.9rem', fontWeight: '600', color: '#1f2937' }}>Debt Payoff Methods</h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowPayoffMethodInfo(false)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0',
+                        color: '#6b7280',
+                        fontSize: '1.25rem',
+                        lineHeight: '1',
+                        fontWeight: 'bold'
+                      }}
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.85rem', fontWeight: '600', color: '#1f2937' }}>Snowball Method</p>
+                    <p style={{ margin: '0', fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.5' }}>
+                      You take the smallest debt, pay that off, then move to the next smallest, and keep going like that until all the debt has been eliminated. This method is a bit less effiecient as it does not take interest rates into account, but it has been known to be the most psychologically rewarding. this means people tend to stick to it longer.
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.85rem', fontWeight: '600', color: '#1f2937' }}>Avalanche Method</p>
+                    <p style={{ margin: '0', fontSize: '0.8rem', color: '#4b5563', lineHeight: '1.5' }}>
+                      This method has you pay off the debt with the highest interest first, then the second highest, and so on until all the debt is gone. This method is more efficient in terms of interest accrual. But it can be harder to stick with.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -332,7 +699,7 @@ function ResultsPanel({
                 <div>
                   <strong>{debt.label}</strong>
                   <p>
-                    Balance {formatCurrency(debt.balance)} | Min {formatCurrency(debt.minimumPayment)} | APR {debt.annualRate.toFixed(2)}%
+                    Balance {formatCurrency(debt.balance)} | Minimum monthly payment {formatCurrency(debt.minimumPayment)} | APR {debt.annualRate.toFixed(2)}%
                   </p>
                 </div>
                 <span className="payoff-time-badge">{debt.payoffText}</span>
@@ -401,9 +768,9 @@ function ResultsPanel({
                 </div>
               </div>
               <p className="debt-ratio-guide">
-                {calculationResult.debtToIncomeRatio <= 36 && "Excellent! Your DTI is in a healthy range."}
-                {calculationResult.debtToIncomeRatio > 36 && calculationResult.debtToIncomeRatio <= 43 && "Fair DTI. Consider reducing debt for better financial flexibility."}
-                {calculationResult.debtToIncomeRatio > 43 && "High DTI. Lenders may view this as risky. Focus on debt reduction."}
+                {calculationResult.debtToIncomeRatio <= 36 && "Ayyyy! Good work!"}
+                {calculationResult.debtToIncomeRatio > 36 && calculationResult.debtToIncomeRatio <= 43 && "Hmm, it's alright but you may wanna try getting this a bit lower."}
+                {calculationResult.debtToIncomeRatio > 43 && "Bro, you are cooked. You gotta fix this shit ASAP."}
               </p>
             </div>
           )}
@@ -429,15 +796,15 @@ function ResultsPanel({
                 <svg className="check-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p>Using {calculationResult.savingsProjection.bestSavingsAccount.label} at {calculationResult.savingsProjection.bestSavingsAccount.interestRate.toFixed(2)}% APY</p>
+                <p>All savings should be stored in the "{calculationResult.savingsProjection.bestSavingsAccount.label}", this account has the highest interest rate of your accounts at: {calculationResult.savingsProjection.bestSavingsAccount.interestRate.toFixed(2)}% APY</p>
               </div>
             )}
           </div>
 
           <div className="savings-summary">
             <div className="timeline-summary-card">
-              <p>Monthly savings contribution</p>
-              <strong>{formatCurrency(calculationResult.savingsProjection.monthlySavingsContribution)}</strong>
+              <p>Monthly contribution to "{calculationResult.savingsProjection.bestSavingsAccount.label}"</p>
+              <strong>{formatCurrency(baseMonthlySavingsContribution)}</strong>
             </div>
             <div className="timeline-summary-card">
               <p>Total savings goals</p>
@@ -445,31 +812,63 @@ function ResultsPanel({
             </div>
           </div>
 
-          {calculationResult.savingsProjection.monthlySavingsContribution <= 0 && (
+          <div className="extra-payment-controls">
+            <label htmlFor="extra-savings-amount">Monthly savings contribution</label>
+            <div className="extra-payment-inputs">
+              <input
+                id="extra-savings-amount"
+                type="range"
+                min="0"
+                max={maxAdditionalSavings}
+                step="10"
+                value={Math.min(additionalSavings || 0, maxAdditionalSavings)}
+                onChange={(event) => setAdditionalSavings(parseAmount(event.target.value))}
+                disabled={maxAdditionalSavings === 0}
+              />
+              <input
+                type="number"
+                min="0"
+                max={maxAdditionalSavings}
+                step="10"
+                value={Math.min(additionalSavings || 0, maxAdditionalSavings)}
+                onChange={(event) => {
+                  const nextValue = parseAmount(event.target.value);
+                  setAdditionalSavings(Math.min(nextValue, maxAdditionalSavings));
+                }}
+              />
+            </div>
+          </div>
+
+          {baseMonthlySavingsContribution <= 0 && (
             <div className="savings-warning">
-              <p>No monthly savings available for goals. Increase your savings budget to start working toward your goals.</p>
+              <p>You aren't saving anything lmao, go back to expenses and add a savings expense that isn't an additional debt payment. Otherwise you are never gonna hit this goal!</p>
             </div>
           )}
 
-          {calculationResult.savingsProjection.timeline.length > 0 && (
+          {savingsTimeline.length > 0 && (
             <div className="savings-timeline">
               <h4>Goal Timeline (by priority)</h4>
               <div className="savings-timeline-list">
-                {calculationResult.savingsProjection.timeline.map((goal, index) => {
+                {savingsTimeline.map((goal, index) => {
                   const monthsToComplete = goal.monthsToComplete;
+                  const isInfinite = monthsToComplete === Infinity;
                   const years = Math.floor(monthsToComplete / 12);
                   const months = monthsToComplete % 12;
                   const timeLabel = goal.alreadyFunded 
                     ? 'Fully funded' 
-                    : years > 0 
-                      ? `${years}y ${months}m` 
-                      : `${months}m`;
+                    : isInfinite
+                      ? '∞'
+                      : years > 0 
+                        ? `${years}y ${months}m` 
+                        : `${months}m`;
 
                   const completionDate = new Date();
                   completionDate.setMonth(completionDate.getMonth() + goal.totalMonths);
                   const completionLabel = goal.alreadyFunded 
                     ? 'Already achieved' 
-                    : completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    : isInfinite
+                      ? 'Never'
+                      : completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
                   return (
                     <div key={goal.id} className="savings-timeline-item">
@@ -510,7 +909,7 @@ function ResultsPanel({
             </div>
           )}
 
-          {calculationResult.savingsProjection.timeline.length === 0 && (
+          {savingsTimeline.length === 0 && (
             <div className="savings-empty">
               <p>No savings goals defined. Add goals in the Savings Goals section to see projections.</p>
             </div>
@@ -634,12 +1033,21 @@ function ResultsPanel({
                     <p>Target for Your Age</p>
                     <strong>{formatCurrency(calculationResult.retirementTracking.retirementTarget)}</strong>
                     <span className="metric-subtext">
-                      {calculationResult.retirementTracking.retirementTargetMultiplier}x annual salary
+                      {calculationResult.retirementTracking.retirementTargetMultiplier.toFixed(1)}x annual household income
                     </span>
                   </div>
                   <div className="retirement-metric-card">
-                    <p>Progress to Target</p>
+                    <p>Percentage of Target</p>
                     <strong>{calculationResult.retirementTracking.percentOfTarget.toFixed(1)}%</strong>
+                  </div>
+                  <div className="retirement-metric-card">
+                    <p>Monthly Retirement Savings</p>
+                    <strong>
+                      {((calculationResult.retirementTracking.monthlyRetirementContribution / calculationResult.monthlyIncome) * 100).toFixed(1)}%
+                    </strong>
+                    <span className="metric-subtext">
+                      of monthly income (including employer match)
+                    </span>
                   </div>
                 </div>
 
@@ -657,40 +1065,33 @@ function ResultsPanel({
                 </div>
               </div>
 
-              <div className="retirement-milestones">
-                <h4>Retirement Savings Milestones</h4>
-                <div className="milestone-list">
-                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 30 ? 'achieved' : 'future'}`}>
-                    <span className="milestone-age">Age 30</span>
-                    <span className="milestone-target">1x annual salary</span>
-                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 1)}</span>
-                  </div>
-                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 40 ? 'achieved' : 'future'}`}>
-                    <span className="milestone-age">Age 40</span>
-                    <span className="milestone-target">3x annual salary</span>
-                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 3)}</span>
-                  </div>
-                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 50 ? 'achieved' : 'future'}`}>
-                    <span className="milestone-age">Age 50</span>
-                    <span className="milestone-target">6x annual salary</span>
-                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 6)}</span>
-                  </div>
-                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 60 ? 'achieved' : 'future'}`}>
-                    <span className="milestone-age">Age 60</span>
-                    <span className="milestone-target">9x annual salary</span>
-                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 9)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {calculationResult.retirementTracking.yearsToRetirement > 0 && (
-                <div className="retirement-projection">
-                  <h4>Retirement Projection</h4>
-                  <p className="projection-subtext">
-                    Based on your current savings and monthly contributions
-                  </p>
+              <div className="retirement-projection">
+                <h4>Retirement Projection</h4>
+                <p className="projection-subtext">
+                  Based on your current savings and monthly contributions
+                </p>
 
                   <div className="projection-controls">
+                    <label htmlFor="retirement-age-slider">
+                      Retirement Age: {retirementAge}
+                    </label>
+                    <div className="rate-slider-wrap">
+                      <input
+                        id="retirement-age-slider"
+                        type="range"
+                        min={calculationResult.retirementTracking.currentAge || 18}
+                        max="100"
+                        step="1"
+                        value={retirementAge}
+                        onChange={(event) => setRetirementAge(Number.parseInt(event.target.value, 10))}
+                      />
+                      <div className="rate-slider-labels">
+                        <span>{calculationResult.retirementTracking.currentAge || 18}</span>
+                        <span>65 (Standard)</span>
+                        <span>100</span>
+                      </div>
+                    </div>
+
                     <label htmlFor="retirement-rate-slider">
                       Rate of Return: {retirementRateOfReturn}%
                     </label>
@@ -717,8 +1118,8 @@ function ResultsPanel({
                   <div className="projection-summary">
                     <div className="projection-metric-card">
                       <p>Years to Retirement</p>
-                      <strong>{calculationResult.retirementTracking.yearsToRetirement} years</strong>
-                      <span className="metric-subtext">Until age 65</span>
+                      <strong>{yearsToRetirement} years</strong>
+                      <span className="metric-subtext">Until age {retirementAge}</span>
                     </div>
                     <div className="projection-metric-card">
                       <p>Monthly Contribution</p>
@@ -726,24 +1127,49 @@ function ResultsPanel({
                       <span className="metric-subtext">Includes employer match</span>
                     </div>
                     <div className="projection-metric-card highlight">
-                      <p>Projected Value at 65</p>
-                      <strong>{formatCurrency(calculationResult.retirementTracking.projectedRetirementValue)}</strong>
+                      <p>Projected Value at {retirementAge}</p>
+                      <strong>{formatCurrency(projectedRetirementValue)}</strong>
                       <span className="metric-subtext">At {retirementRateOfReturn}% annual return</span>
                     </div>
                   </div>
                 </div>
-              )}
+
+              <div className="retirement-milestones">
+                <h4>Retirement Savings Milestones</h4>
+                <div className="milestone-list">
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 30 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 30</span>
+                    <span className="milestone-target">1x annual household income</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 1)}</span>
+                  </div>
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 40 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 40</span>
+                    <span className="milestone-target">3x annual household income</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 3)}</span>
+                  </div>
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 50 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 50</span>
+                    <span className="milestone-target">6x annual household income</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 6)}</span>
+                  </div>
+                  <div className={`milestone-item ${calculationResult.retirementTracking.currentAge >= 60 ? 'achieved' : 'future'}`}>
+                    <span className="milestone-age">Age 60</span>
+                    <span className="milestone-target">9x annual household income</span>
+                    <span className="milestone-amount">{formatCurrency(calculationResult.retirementTracking.annualIncome * 9)}</span>
+                  </div>
+                </div>
+              </div>
 
               {calculationResult.retirementTracking.currentAge < calculationResult.retirementTracking.nextMilestoneAge && (
                 <div className="retirement-next-goal">
                   <h4>Next Milestone</h4>
                   <p>
-                    By age {calculationResult.retirementTracking.nextMilestoneAge}, aim to have{' '}
+                    By age {calculationResult.retirementTracking.nextMilestoneAge}, you should have{' '}
                     <strong>{formatCurrency(calculationResult.retirementTracking.nextMilestoneTarget)}</strong>
-                    {' '}({calculationResult.retirementTracking.nextMilestoneMultiplier}x your annual salary)
+                    {' '}({calculationResult.retirementTracking.nextMilestoneMultiplier}x your annual household income)
                   </p>
                   <p className="next-goal-gap">
-                    Gap to close: {formatCurrency(Math.max(0, calculationResult.retirementTracking.nextMilestoneTarget - calculationResult.retirementTracking.totalRetirementBalance))}
+                    You are only {formatCurrency(Math.max(0, calculationResult.retirementTracking.nextMilestoneTarget - calculationResult.retirementTracking.totalRetirementBalance))} away!
                   </p>
                 </div>
               )}
@@ -760,8 +1186,26 @@ function ResultsPanel({
       {currentStep?.key === 'foo' && calculationResult.financialOrderOfOperations && (
         <section aria-label="Financial Order of Operations">
           <div className="foo-header">
-            <h3>Financial Order of Operations</h3>
-            <p className="foo-subtitle">Follow these steps to build a strong financial foundation</p>
+            <h3>The Money Guy's Financial Order of Operations (FOO)</h3>
+            <p className="foo-subtitle">Yeah I can take no credit for this one. The Money Guy (who are actually two guys) came up with this strategy to maximize every dollar you put into your financial plan. I strongly believe in their methodology and Bo is SO EXCITED for you to follow it. This version is a little less excited than the laminated copy they have but it should work just as well.</p>
+            {/* Test button for celebration */}
+            {/* <button
+              type="button"
+              onClick={() => setShowCelebration(true)}
+              style={{
+                marginTop: '1rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+            >
+              🎉 Test Celebration
+            </button> */}
           </div>
 
           <div className="foo-current-step">
@@ -802,12 +1246,12 @@ function ResultsPanel({
                   {step.number === 1 && (
                     <>
                       <div className="detail-row">
-                        <span>Total Savings Balance:</span>
+                        <span>Total Savings:</span>
                         <strong>{formatCurrency(step.details.totalSavingsBalance)}</strong>
                       </div>
                       <div className="detail-row">
-                        <span>Deductible Coverage Needed:</span>
-                        <strong>{formatCurrency(step.details.lowestDeductible)}</strong>
+                        <span>Highest Deductible:</span>
+                        <strong>{formatCurrency(step.details.highestDeductible)}</strong>
                       </div>
                       {!step.completed && step.details.remaining > 0 && (
                         <div className="detail-row highlight">
@@ -817,7 +1261,7 @@ function ResultsPanel({
                       )}
                       {step.completed && (
                         <div className="completion-badge">
-                          ✓ Deductible covered!
+                          ✓ "Oh Shit" fund completed!
                         </div>
                       )}
                     </>
@@ -826,7 +1270,7 @@ function ResultsPanel({
                   {step.number === 2 && (
                     <>
                       <div className="detail-row">
-                        <span>Retirement Contributions:</span>
+                        <span>Retirement Accounts with Contributions:</span>
                         <strong>{step.details.totalRetirementContributions}</strong>
                       </div>
                       <div className="detail-row">
@@ -843,7 +1287,7 @@ function ResultsPanel({
                       )}
                       {step.completed && (
                         <div className="completion-badge">
-                          ✓ Getting full employer match!
+                          ✓ Milking them for all they're worth!
                         </div>
                       )}
                       {step.details.totalRetirementContributions === 0 && (
@@ -875,7 +1319,7 @@ function ResultsPanel({
                         </>
                       ) : (
                         <div className="completion-badge">
-                          ✓ No high-interest debt!
+                          ✓ All debt vampires have been slain!
                         </div>
                       )}
                     </>
@@ -903,7 +1347,7 @@ function ResultsPanel({
                       )}
                       {step.completed && (
                         <div className="completion-badge">
-                          ✓ Emergency fund fully funded!
+                          ✓ Bread has been stacked!
                         </div>
                       )}
                     </>
@@ -911,10 +1355,30 @@ function ResultsPanel({
 
                   {step.number === 5 && (
                     <>
+                      <div className="detail-row">
+                        <span>Requirement:</span>
+                        <strong>{step.details.requirementMessage}</strong>
+                      </div>
+                      {step.details.hsaRequired && (
+                        <>
+                          <div className="detail-row">
+                            <span>HSA Contributing:</span>
+                            <strong className={step.details.isContributingToHSA ? 'status-good' : 'status-over'}>
+                              {step.details.isContributingToHSA ? 'Yes ✓' : 'No ✗'}
+                            </strong>
+                          </div>
+                        </>
+                      )}
+                      <div className="detail-row">
+                        <span>Contributing to ROTH IRA:</span>
+                        <strong className={step.details.hasRothContributions ? 'status-good' : 'status-over'}>
+                          {step.details.hasRothContributions ? 'Yes ✓' : 'No ✗'}
+                        </strong>
+                      </div>
                       {step.details.totalRothContributions > 0 ? (
                         <>
                           <div className="detail-row">
-                            <span>ROTH/HSA Contributions:</span>
+                            <span>ROTH IRA/HSA Contributions:</span>
                             <strong>{step.details.totalRothContributions}</strong>
                           </div>
                           <div className="detail-row">
@@ -931,13 +1395,15 @@ function ResultsPanel({
                           </div>
                           {step.completed && (
                             <div className="completion-badge">
-                              ✓ Contributing to tax-advantaged accounts!
+                              ✓ Successfully evading taxes (legally)!
                             </div>
                           )}
                         </>
                       ) : (
                         <div className="no-data-message">
-                          No ROTH IRA or HSA contributions set up yet. Consider opening these tax-advantaged accounts!
+                          {step.details.hsaRequired 
+                            ? 'Set up ROTH IRA and HSA contributions to pass this step'
+                            : 'No ROTH IRA or HSA contributions set up yet. Consider opening these tax-advantaged accounts!'}
                         </div>
                       )}
                     </>
@@ -960,7 +1426,7 @@ function ResultsPanel({
                         <strong>{formatCurrency(step.details.monthlyRetirementContribution)}</strong>
                       </div>
                       <div className="detail-row">
-                        <span>Contribution Percentage:</span>
+                        <span>Contribution Percentage (incl. match):</span>
                         <strong className={step.details.retirementContributionPercentage >= 25 ? 'status-under' : 'status-over'}>
                           {step.details.retirementContributionPercentage.toFixed(1)}%
                         </strong>
@@ -973,7 +1439,7 @@ function ResultsPanel({
                       )}
                       {step.completed && (
                         <div className="completion-badge">
-                          ✓ Maxing out retirement contributions!
+                          ✓ Future is flushed!
                         </div>
                       )}
                     </>
@@ -985,12 +1451,6 @@ function ResultsPanel({
                         <span>Savings Budget Met:</span>
                         <strong className={step.details.saveBudgetMet ? 'status-under' : 'status-over'}>
                           {step.details.saveBudgetMet ? 'Yes ✓' : 'No ✗'}
-                        </strong>
-                      </div>
-                      <div className="detail-row">
-                        <span>Save Actual / Allocated:</span>
-                        <strong>
-                          {formatCurrency(step.details.saveActual)} / {formatCurrency(step.details.saveAllocated)}
                         </strong>
                       </div>
                       <div className="detail-row">
@@ -1015,17 +1475,17 @@ function ResultsPanel({
                       )}
                       {step.completed && (
                         <div className="completion-badge">
-                          ✓ Building wealth through investments!
+                          ✓ You are on your Wolf of Wall Street shit!
                         </div>
                       )}
                       {!step.completed && !step.details.saveBudgetMet && (
                         <div className="no-data-message">
-                          Focus on meeting your savings budget first before investing in taxable accounts.
+                          Focus on meeting your savings budget first before buying GME.
                         </div>
                       )}
                       {!step.completed && step.details.saveBudgetMet && step.details.totalInvestmentContributions === 0 && (
                         <div className="no-data-message">
-                          Great job meeting your savings budget! Now add an investment account to continue building wealth.
+                          Nice work meeting your savings budget! Now add in some individual investing to level up.
                         </div>
                       )}
                     </>
@@ -1053,13 +1513,13 @@ function ResultsPanel({
                           </div>
                           {step.completed && (
                             <div className="completion-badge">
-                              ✓ Planning for future expenses!
+                              ✓ The monsters of the future fear the warriors of the present!
                             </div>
                           )}
                         </>
                       ) : (
                         <div className="no-data-message">
-                          Set up savings goals for upcoming expenses like vacations, home repairs, or major purchases!
+                          Set up savings goals and start contributing to level up.
                         </div>
                       )}
                     </>
@@ -1070,22 +1530,22 @@ function ResultsPanel({
                       {step.details.totalDebts > 0 ? (
                         <>
                           <div className="detail-row">
-                            <span>Remaining Debt:</span>
+                            <span>Remaining Debt Total:</span>
                             <strong className="status-over">{formatCurrency(step.details.totalRemainingDebt)}</strong>
                           </div>
                           <div className="detail-row">
-                            <span>Number of Debts:</span>
+                            <span>Number of Remaining Debt Accounts:</span>
                             <strong>{step.details.totalDebts}</strong>
                           </div>
                           {!step.completed && (
                             <div className="no-data-message">
-                              Keep making payments to eliminate all remaining debt and achieve complete financial freedom!
+                              Keep making payments to eliminate all remaining debt and beat the system!
                             </div>
                           )}
                         </>
                       ) : (
                         <div className="completion-badge">
-                          ✓ Completely debt-free! You've achieved financial freedom!
+                          ✓ I DON"T OWE NOBODY NOTHING!
                         </div>
                       )}
                     </>
@@ -1096,7 +1556,7 @@ function ResultsPanel({
           </div>
 
           <div className="foo-footer">
-            <p>Complete each step in order to build a solid financial foundation!</p>
+            <p>All steps completed? You win! Come back when all steps have been completed for a surprise!</p>
           </div>
         </section>
       )}
@@ -1112,6 +1572,11 @@ function ResultsPanel({
                 <span>{rule.detail}</span>
               </article>
             ))}
+          </div>
+          <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: '0.5rem', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+            <p style={{ margin: '0', fontSize: '0.9rem', fontStyle: 'italic', opacity: 0.8 }}>
+              💡 Does this page seem out of place? That's because it is! This will be overhauled into a new feature called insights, stay tuned!
+            </p>
           </div>
         </section>
       )}
@@ -1210,13 +1675,16 @@ function ResultsPanel({
               <div className="dashboard-savings-list">
                 {calculationResult.savingsProjection.timeline.slice(0, 3).map((goal) => {
                   const monthsToComplete = goal.monthsToComplete;
+                  const isInfinite = monthsToComplete === Infinity;
                   const years = Math.floor(monthsToComplete / 12);
                   const months = monthsToComplete % 12;
                   const timeLabel = goal.alreadyFunded 
                     ? 'Funded' 
-                    : years > 0 
-                      ? `${years}y ${months}m` 
-                      : `${months}m`;
+                    : isInfinite
+                      ? '\u221e'
+                      : years > 0 
+                        ? `${years}y ${months}m` 
+                        : `${months}m`;
 
                   return (
                     <div key={goal.id} className="dashboard-savings-item">
@@ -1373,7 +1841,7 @@ function ResultsPanel({
           ← Previous
         </button>
         <span className="results-step-indicator">
-          {activeResultStep + 1} / {steps.length}
+          {clampedActiveStep + 1} / {steps.length}
         </span>
         {currentStep?.key !== 'dashboard' && (
           <button

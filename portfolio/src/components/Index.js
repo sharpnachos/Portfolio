@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import '../styles/Index.css';
 import '../styles/Onboarding.css';
 import FinanceInputColumn from './finance/FinanceInputColumn';
@@ -24,12 +24,13 @@ import {
 } from './finance/financeHelpers';
 
 const ALL_STEP_KEYS = ['income', 'assets', 'contributions', 'expenses', 'debt', 'savings-goals', 'about-me'];
+const STORAGE_KEY = 't-money-toolbox-calculator-data';
 
 function Index() {
   const [incomeFields, setIncomeFields] = useState([createItem('Primary Paycheck', 'biweekly')]);
   const [assetFields, setAssetFields] = useState([createItem('Primary Account', 'monthly', 'needs', 'checking account')]);
   const [expenseFields, setExpenseFields] = useState([
-    createItem('Rent'),
+    { ...createItem('Rent'), isRent: true },
     createItem('Groceries'),
     createItem('Transportation'),
     createItem('Utilities'),
@@ -50,15 +51,20 @@ function Index() {
   const [selectedPayoffPhaseKey, setSelectedPayoffPhaseKey] = useState(null);
   const [selectedNetWorthSegment, setSelectedNetWorthSegment] = useState(null);
   const [retirementRateOfReturn, setRetirementRateOfReturn] = useState(7);
+  const [retirementAge, setRetirementAge] = useState(65);
+  const [additionalSavings, setAdditionalSavings] = useState(null);
   const [activeAmountField, setActiveAmountField] = useState(null);
   const [activeRateField, setActiveRateField] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
-  const [showHelpChooser, setShowHelpChooser] = useState(false);
   const [showHousingChooser, setShowHousingChooser] = useState(false);
-  const [selectedHelpOptions, setSelectedHelpOptions] = useState([]);
-  const [hasManualMaritalStatus, setHasManualMaritalStatus] = useState(false);
+  const [showCarLoansChooser, setShowCarLoansChooser] = useState(false);
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
+  const [initialResultStep, setInitialResultStep] = useState(0);
+  const [currentInput, setCurrentInput] = useState(0);
+  const [currentResult, setCurrentResult] = useState(0);
+  const hasLoadedFromStorageRef = useRef(false);
   const [housingInfo, setHousingInfo] = useState({
     occupancy: 'rent',
     rentAmount: '',
@@ -68,15 +74,132 @@ function Index() {
     homeEquity: '',
     homePaidOff: false
   });
+  const [carLoansInfo, setCarLoansInfo] = useState({
+    hasCarLoans: 'yes',
+    loans: [{
+      id: `car-loan-${Date.now()}`,
+      name: '',
+      balance: '',
+      interestRate: '',
+      monthlyPayment: ''
+    }]
+  });
   const [aboutMe, setAboutMe] = useState({
     age: '',
-    maritalStatus: 'single',
-    lowestDeductible: '',
+    highestDeductible: '',
     hasHighDeductiblePlan: false,
     householdGrossAnnualIncome: ''
   });
 
+  // Load saved data from localStorage on mount
   useEffect(() => {
+    try {
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        
+        // Restore all saved state
+        if (parsed.incomeFields) setIncomeFields(parsed.incomeFields);
+        if (parsed.assetFields) setAssetFields(parsed.assetFields);
+        if (parsed.expenseFields) setExpenseFields(parsed.expenseFields);
+        if (parsed.debtFields) setDebtFields(parsed.debtFields);
+        if (parsed.contributionFields) setContributionFields(parsed.contributionFields);
+        if (parsed.savingsGoalFields) setSavingsGoalFields(parsed.savingsGoalFields);
+        if (parsed.housingInfo) setHousingInfo(parsed.housingInfo);
+        if (parsed.carLoansInfo) setCarLoansInfo(parsed.carLoansInfo);
+        if (parsed.aboutMe) setAboutMe(parsed.aboutMe);
+        if (parsed.payoffMethod) setPayoffMethod(parsed.payoffMethod);
+        if (parsed.additionalDebtPayment !== undefined) setAdditionalDebtPayment(parsed.additionalDebtPayment);
+        if (parsed.rolloverPaidOffMinimums !== undefined) setRolloverPaidOffMinimums(parsed.rolloverPaidOffMinimums);
+        if (parsed.retirementRateOfReturn !== undefined) setRetirementRateOfReturn(parsed.retirementRateOfReturn);
+        if (parsed.retirementAge !== undefined) setRetirementAge(parsed.retirementAge);
+        if (parsed.additionalSavings !== undefined) setAdditionalSavings(parsed.additionalSavings);
+        if (parsed.currentInput !== undefined) setCurrentInput(parsed.currentInput);
+        if (parsed.currentResult !== undefined) setCurrentResult(parsed.currentResult);
+        
+        // Mark that we've loaded from storage to prevent contributionFields from being overwritten
+        hasLoadedFromStorageRef.current = true;
+        
+        // When loading saved data, show welcome back screen and prepare to show results
+        setShowWelcomeBack(true);
+        setMaxUnlockedStep(ALL_STEP_KEYS.length - 1);
+        // Set initial result step to dashboard (last tab)
+        setInitialResultStep(999); // Will be clamped to last step in ResultsPanel
+      }
+    } catch (error) {
+      console.error('Failed to load data from localStorage:', error);
+    }
+  }, []); // Empty dependency array - run only on mount
+
+  // Function to save current state to localStorage
+  const saveToLocalStorage = useCallback(() => {
+    try {
+      const dataToSave = {
+        incomeFields,
+        assetFields,
+        expenseFields,
+        debtFields,
+        contributionFields,
+        savingsGoalFields,
+        housingInfo,
+        carLoansInfo,
+        aboutMe,
+        payoffMethod,
+        additionalDebtPayment,
+        rolloverPaidOffMinimums,
+        retirementRateOfReturn,
+        retirementAge,
+        additionalSavings,
+        hasStarted,
+        showHousingChooser,
+        currentInput,
+        currentResult,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error('Failed to save data to localStorage:', error);
+    }
+  }, [
+    incomeFields,
+    assetFields,
+    expenseFields,
+    debtFields,
+    contributionFields,
+    savingsGoalFields,
+    housingInfo,
+    carLoansInfo,
+    aboutMe,
+    payoffMethod,
+    additionalDebtPayment,
+    rolloverPaidOffMinimums,
+    retirementRateOfReturn,
+    retirementAge,
+    additionalSavings,
+    hasStarted,
+    showHousingChooser,
+    currentInput,
+    currentResult
+  ]);
+
+  // Auto-save when user returns to results page after editing
+  useEffect(() => {
+    if (calculationResult && formCollapsed) {
+      saveToLocalStorage();
+      // Reset initial result step after first load so subsequent views start at budget
+      if (initialResultStep > 0) {
+        setInitialResultStep(0);
+      }
+    }
+  }, [formCollapsed, calculationResult, initialResultStep, saveToLocalStorage]);
+
+  useEffect(() => {
+    // Don't auto-generate contributionFields if we just loaded from storage
+    if (hasLoadedFromStorageRef.current) {
+      hasLoadedFromStorageRef.current = false;
+      return;
+    }
+
     const contributingAssets = assetFields.filter((asset) => asset.activelyContributing);
 
     setContributionFields((previous) => {
@@ -97,18 +220,6 @@ function Index() {
       });
     });
   }, [assetFields]);
-
-  useEffect(() => {
-    if (hasManualMaritalStatus) {
-      return;
-    }
-
-    const defaultMaritalStatus = incomeFields.length > 1 ? 'married' : 'single';
-    setAboutMe((previous) => ({
-      ...previous,
-      maritalStatus: defaultMaritalStatus
-    }));
-  }, [incomeFields.length, hasManualMaritalStatus]);
 
   // Sync debt minimum payments and retirement contributions to expense fields
   useEffect(() => {
@@ -164,6 +275,87 @@ function Index() {
       return [...userExpenses, ...debtPaymentExpenses, ...contributionExpenses];
     });
   }, [debtFields, contributionFields]);
+
+  // Sync car loans to debt fields
+  useEffect(() => {
+    setDebtFields((previous) => {
+      // Get all non-car-loan debts (user-added debts and mortgage)
+      const userDebts = previous.filter((debt) => !debt.isCarLoan);
+      
+      // Create car loan debts from current car loans info
+      const carLoanDebts = carLoansInfo.hasCarLoans === 'yes' 
+        ? carLoansInfo.loans
+            .filter((loan) => parseAmount(loan.balance) > 0 && parseAmount(loan.monthlyPayment) > 0)
+            .map((loan) => {
+              const existing = previous.find((debt) => debt.linkedCarLoanId === loan.id);
+              
+              if (existing) {
+                return {
+                  ...existing,
+                  label: loan.name || 'Car Loan',
+                  balance: loan.balance,
+                  minimumPayment: loan.monthlyPayment,
+                  interestRate: loan.interestRate,
+                  debtType: 'auto',
+                  isCarLoan: true,
+                  linkedCarLoanId: loan.id
+                };
+              }
+              
+              return {
+                id: `debt-${loan.id}`,
+                label: loan.name || 'Car Loan',
+                value: '',
+                frequency: 'monthly',
+                category: 'needs',
+                assetType: 'checking account',
+                activelyContributing: false,
+                balance: loan.balance,
+                minimumPayment: loan.monthlyPayment,
+                interestRate: loan.interestRate,
+                debtType: 'auto',
+                isCarLoan: true,
+                linkedCarLoanId: loan.id,
+                isDebtPayment: false,
+                linkedDebtId: null,
+                isRetirementContribution: false,
+                linkedContributionId: null
+              };
+            })
+        : [];
+      
+      return [...carLoanDebts, ...userDebts];
+    });
+  }, [carLoansInfo]);
+
+  // Sync HSA to asset fields based on high deductible plan selection
+  useEffect(() => {
+    setAssetFields((previous) => {
+      const hsaIndex = previous.findIndex((asset) => asset.isHSA);
+
+      if (!aboutMe.hasHighDeductiblePlan) {
+        // Remove HSA if high deductible plan is not selected
+        return previous.filter((asset) => !asset.isHSA);
+      }
+
+      // Add or update HSA if high deductible plan is selected
+      const hsaAsset = {
+        ...(hsaIndex >= 0 ? previous[hsaIndex] : createItem('HSA', 'monthly', 'needs', 'retirement account')),
+        label: 'HSA',
+        assetType: 'retirement account',
+        value: hsaIndex >= 0 ? previous[hsaIndex].value : '0',
+        isHSA: true
+      };
+
+      if (hsaIndex >= 0) {
+        const next = [...previous];
+        next[hsaIndex] = hsaAsset;
+        return next;
+      }
+
+      return [hsaAsset, ...previous];
+    });
+  }, [aboutMe.hasHighDeductiblePlan]);
 
   const formatCurrency = (value) => (
     new Intl.NumberFormat('en-US', {
@@ -452,6 +644,10 @@ function Index() {
       .filter((expense) => (expense.label || '').toLowerCase().includes('rent'))
       .reduce((sum, expense) => sum + Math.max(parseAmount(expense.value), 0), 0);
 
+    const totalMortgage = expenseFields
+      .filter((expense) => (expense.label || '').toLowerCase().includes('mortgage'))
+      .reduce((sum, expense) => sum + Math.max(parseAmount(expense.value), 0), 0);
+
     const totalCarPayment = expenseFields
       .filter((expense) => {
         const label = (expense.label || '').toLowerCase();
@@ -470,37 +666,49 @@ function Index() {
       ? 'Auto loan minimum payments'
       : 'Car payment expenses';
 
+    const isOwner = housingInfo.occupancy === 'own';
     const rentLow = monthlyIncome * 0.25;
     const rentHigh = monthlyIncome * 0.33;
+    const mortgageLimit = monthlyIncome * 0.25;
     const carLimit = monthlyIncome * 0.08;
+
+    // Housing guideline - different for renters vs owners
+    const housingGuideline = isOwner
+      ? {
+          id: 'mortgage-budget-cap',
+          label: 'Mortgage Budget',
+          detail: `Your mortgage should be 25% or less of your monthly income. Your mortgage: ${formatCurrency(totalMortgage)}. Recommended: ${formatCurrency(mortgageLimit)} or less.`,
+          passed: totalMortgage <= mortgageLimit
+        }
+      : {
+          id: 'rent-budget-band',
+          label: 'Rent Budget',
+          detail: `Your rent should be between 25% and 33% of your monthly income, or less. Your rent: ${formatCurrency(totalRent)}. Recommended: ${formatCurrency(rentLow)} - ${formatCurrency(rentHigh)} or less.`,
+          passed: totalRent <= rentHigh
+        };
 
     return [
       {
-        id: 'savings-needs-6x',
-        label: 'Savings accounts should be at least 6x monthly needs.',
-        detail: `${formatCurrency(totalSavingsAccounts)} vs required ${formatCurrency(sixMonthNeeds)}`,
-        passed: totalSavingsAccounts >= sixMonthNeeds
-      },
-      {
         id: 'checking-needs-band',
-        label: 'Checking account balance',
+        label: 'Checking Account Balance',
         detail: `Your checking account should have between 1x and 2x your monthly needs. You have ${formatCurrency(totalCheckingAccounts)}. Recommended: ${formatCurrency(monthlyNeeds)} - ${formatCurrency(monthlyNeeds * 2)}.`,
         passed: totalCheckingAccounts >= monthlyNeeds && totalCheckingAccounts <= (monthlyNeeds * 2)
       },
       {
-        id: 'rent-budget-band',
-        label: 'Rent budget',
-        detail: `Your rent should be between 25% and 33% of your monthly income, or less. Your rent: ${formatCurrency(totalRent)}. Recommended: ${formatCurrency(rentLow)} - ${formatCurrency(rentHigh)} or less.`,
-        passed: totalRent <= rentHigh
+        id: 'savings-needs-6x',
+        label: 'Savings Accounts Balance',
+        detail: `Your savings account should have at least 6x your monthly needs. You have ${formatCurrency(totalSavingsAccounts)}. Required: ${formatCurrency(sixMonthNeeds)}.`,
+        passed: totalSavingsAccounts >= sixMonthNeeds
       },
+      housingGuideline,
       {
         id: 'car-budget-cap',
-        label: 'Car payment budget',
+        label: 'Car Payment Budget',
         detail: `Your car payment should be 8% or less of your monthly income. Your payment: ${formatCurrency(carLimitCheckAmount)}. Recommended: ${formatCurrency(carLimit)} or less.`,
         passed: carLimitCheckAmount <= carLimit
       }
     ];
-  }, [assetFields, expenseFields, debtFields, calculationResult]);
+  }, [assetFields, expenseFields, debtFields, calculationResult, housingInfo]);
 
   const updateFieldValue = (setter, values, index, newValue) => {
     const nextValues = [...values];
@@ -606,22 +814,17 @@ function Index() {
 
   const startEditingLabel = (item) => {
     setEditingItemId(item.id);
-    setDraftLabel(item.label);
+    setDraftLabel('');
   };
 
   const saveEditingLabel = (setter, values, index) => {
     const trimmedLabel = draftLabel.trim();
-
-    if (!trimmedLabel) {
-      setEditingItemId(null);
-      setDraftLabel('');
-      return;
-    }
+    const finalLabel = trimmedLabel || `Item ${index + 1}`;
 
     const nextValues = [...values];
     nextValues[index] = {
       ...nextValues[index],
-      label: trimmedLabel
+      label: finalLabel
     };
 
     setter(nextValues);
@@ -639,76 +842,33 @@ function Index() {
   };
 
   const updateAboutMeField = (key, value) => {
-    if (key === 'maritalStatus') {
-      setHasManualMaritalStatus(true);
-    }
-
     setAboutMe((previous) => ({
       ...previous,
       [key]: value
     }));
   };
 
-  const helpOptions = [
-    'Find my net worth',
-    'Pay off my debt',
-    'Create a budget',
-    'Show me my next financial step',
-    'Help me save for a goal',
-    'I want all of it!'
-  ];
-  const allOptionLabel = 'I want all of it!';
-  const nextStepOptionLabel = 'Show me my next financial step';
-  const netWorthOptionLabel = 'Find my net worth';
-  const debtOptionLabel = 'Pay off my debt';
-  const budgetOptionLabel = 'Create a budget';
-  const saveGoalOptionLabel = 'Help me save for a goal';
-
-  const selectedHelpOptionSet = useMemo(() => new Set(selectedHelpOptions), [selectedHelpOptions]);
-  const wantsAllExperience = selectedHelpOptionSet.has(allOptionLabel) || selectedHelpOptionSet.has(nextStepOptionLabel);
-
   const enabledInputStepKeys = useMemo(() => {
-    if (wantsAllExperience) {
-      return new Set(ALL_STEP_KEYS);
-    }
+    return new Set(ALL_STEP_KEYS);
+  }, []);
 
-    const nextKeys = new Set();
-
-    if (selectedHelpOptionSet.has(netWorthOptionLabel)) {
-      nextKeys.add('assets');
-      nextKeys.add('debt');
-    }
-
-    if (selectedHelpOptionSet.has(debtOptionLabel)) {
-      nextKeys.add('debt');
-    }
-
-    if (selectedHelpOptionSet.has(budgetOptionLabel)) {
-      nextKeys.add('income');
-      nextKeys.add('expenses');
-    }
-
-    if (selectedHelpOptionSet.has(saveGoalOptionLabel)) {
-      nextKeys.add('income');
-      nextKeys.add('savings-goals');
-    }
-
-    if (nextKeys.size === 0) {
-      nextKeys.add('income');
-    }
-
-    return nextKeys;
-  }, [wantsAllExperience, selectedHelpOptionSet]);
-
-  const showBudgetResults = wantsAllExperience || selectedHelpOptionSet.has(budgetOptionLabel) || selectedHelpOptionSet.has(saveGoalOptionLabel);
-  const showDebtResults = wantsAllExperience || selectedHelpOptionSet.has(debtOptionLabel);
-  const showNetWorthResults = wantsAllExperience || selectedHelpOptionSet.has(netWorthOptionLabel);
-  const showGuidelinesResults = wantsAllExperience;
-  const showRetirementResults = wantsAllExperience || selectedHelpOptionSet.has(budgetOptionLabel) || selectedHelpOptionSet.has(saveGoalOptionLabel);
-  const showSavingsResults = wantsAllExperience || selectedHelpOptionSet.has(saveGoalOptionLabel);
-  const showFOOResults = wantsAllExperience;
+  const showBudgetResults = true;
+  const showDebtResults = true;
+  const showNetWorthResults = true;
+  const showGuidelinesResults = true;
+  const showRetirementResults = true;
+  const showSavingsResults = true;
+  const showFOOResults = true;
 
   const allInputSteps = [
+    {
+      key: 'about-me',
+      title: 'About Me',
+      values: [],
+      setter: () => {},
+      prefix: 'about-me',
+      addText: ''
+    },
     {
       key: 'income',
       title: 'Income',
@@ -725,6 +885,14 @@ function Index() {
       prefix: 'asset',
       addText: 'Add Asset'
     },
+        {
+      key: 'contributions',
+      title: 'Contributions',
+      values: contributionFields,
+      setter: setContributionFields,
+      prefix: 'contribution',
+      addText: 'Add Contribution'
+    },
     {
       key: 'debt',
       title: 'Debt',
@@ -732,14 +900,6 @@ function Index() {
       setter: setDebtFields,
       prefix: 'debt',
       addText: 'Add Debt'
-    },
-    {
-      key: 'contributions',
-      title: 'Contributions',
-      values: contributionFields,
-      setter: setContributionFields,
-      prefix: 'contribution',
-      addText: 'Add Contribution'
     },
     {
       key: 'expenses',
@@ -756,14 +916,6 @@ function Index() {
       setter: setSavingsGoalFields,
       prefix: 'savings-goal',
       addText: 'Add Goal'
-    },
-    {
-      key: 'about-me',
-      title: 'About Me',
-      values: [],
-      setter: () => {},
-      prefix: 'about-me',
-      addText: ''
     }
   ];
 
@@ -788,6 +940,7 @@ function Index() {
 
     const nextStep = activeStep + 1;
     setActiveStep(nextStep);
+    setCurrentInput(nextStep);
     setMaxUnlockedStep((previous) => Math.max(previous, nextStep));
   };
 
@@ -796,13 +949,16 @@ function Index() {
       return;
     }
 
-    setActiveStep(activeStep - 1);
+    const prevStep = activeStep - 1;
+    setActiveStep(prevStep);
+    setCurrentInput(prevStep);
   };
 
   const handleStepDotClick = (stepIndex) => {
     if (stepIndex > maxUnlockedStep) {
       return;
     }
+    setCurrentInput(stepIndex);
 
     setActiveStep(stepIndex);
   };
@@ -1046,14 +1202,22 @@ function Index() {
       // Interpolate between 30 (1x) and 40 (3x)
       const progress = (userAge - 30) / (40 - 30);
       retirementTargetMultiplier = 1 + (3 - 1) * progress;
+    } else if (userAge >= 21) {
+      currentMilestoneAge = 21;
+      currentMilestoneMultiplier = 0;
+      nextMilestoneAge = 30;
+      nextMilestoneMultiplier = 1;
+      // Interpolate between 21 (0x) and 30 (1x)
+      // Assumes retirement savings typically start around age 21
+      const progress = (userAge - 21) / (30 - 21);
+      retirementTargetMultiplier = 0 + (1 - 0) * progress;
     } else {
+      // Under 21 - typically haven't started saving yet
       currentMilestoneAge = 0;
       currentMilestoneMultiplier = 0;
       nextMilestoneAge = 30;
       nextMilestoneMultiplier = 1;
-      // Interpolate between 0 (0x) and 30 (1x)
-      const progress = userAge / 30;
-      retirementTargetMultiplier = 0 + (1 - 0) * progress;
+      retirementTargetMultiplier = 0;
     }
 
     const annualIncome = parseAmount(aboutMe.householdGrossAnnualIncome) || (monthlyIncome * 12);
@@ -1062,8 +1226,8 @@ function Index() {
     const isOnTrack = totalRetirementBalance >= retirementTarget;
     const percentOfTarget = retirementTarget > 0 ? (totalRetirementBalance / retirementTarget) * 100 : 0;
 
-    // Calculate future value projection at age 65
-    const yearsToRetirement = Math.max(0, 65 - userAge);
+    // Calculate future value projection at retirement age
+    const yearsToRetirement = Math.max(0, retirementAge - userAge);
     const monthsToRetirement = yearsToRetirement * 12;
     const monthlyRate = retirementRateOfReturn / 100 / 12;
     
@@ -1118,10 +1282,13 @@ function Index() {
       .filter((item) => item.isRetirementContribution)
       .reduce((sum, item) => sum + parseAmount(item.value), 0);
     
-    // Monthly savings available for goals = total save spending - debt payments - all contributions
-    const monthlySavingsContribution = savingsSummary 
+    // Monthly savings available for goals = total save spending - debt payments - all contributions + additional savings
+    const baseMonthlySavingsContribution = savingsSummary 
       ? savingsSummary.actual - addlDebtPaymentSum - totalContributionExpenses
       : 0;
+    
+    // additionalSavings slider represents total monthly savings for goals (can be adjusted above or below base)
+    const monthlySavingsContribution = additionalSavings !== null ? additionalSavings : baseMonthlySavingsContribution;
 
     const preparedGoals = savingsGoalFields
       .map((goal, index) => ({
@@ -1141,15 +1308,26 @@ function Index() {
     preparedGoals.forEach((goal) => {
       const stillNeeded = Math.max(goal.amountNeeded - goal.amountSaved - cumulativeSavings, 0);
       
-      if (monthlySavingsContribution <= 0 || stillNeeded <= 0) {
+      if (stillNeeded <= 0) {
         savingsTimeline.push({
           ...goal,
           monthsToComplete: 0,
           totalMonths: previousMonths,
           completionAmount: goal.amountNeeded,
-          alreadyFunded: stillNeeded <= 0
+          alreadyFunded: true
         });
         cumulativeSavings += Math.max(goal.amountNeeded - goal.amountSaved, 0);
+        return;
+      }
+
+      if (monthlySavingsContribution <= 0) {
+        savingsTimeline.push({
+          ...goal,
+          monthsToComplete: Infinity,
+          totalMonths: Infinity,
+          completionAmount: goal.amountSaved,
+          alreadyFunded: false
+        });
         return;
       }
 
@@ -1185,19 +1363,22 @@ function Index() {
       hasSavingsAccount: savingsAccounts.length > 0,
       recommendedRate: recommendedInterestRate,
       monthlySavingsContribution,
+      baseMonthlySavingsContribution,
       totalGoals: preparedGoals.length
     };
 
+    const maxAdditionalSavings = Math.max(0, remainingAfterExpenses);
+
     // Financial Order of Operations calculation
     // userAge already declared above for retirement tracking
-    const lowestDeductible = parseAmount(aboutMe.lowestDeductible);
+    const highestDeductible = parseAmount(aboutMe.highestDeductible);
     
     // Step 1: Deductibles covered
     // savingsAccounts already declared above for savings projections
     const totalSavingsBalance = savingsAccounts.reduce((sum, account) => 
       sum + parseAmount(account.value), 0
     );
-    const step1Complete = totalSavingsBalance >= lowestDeductible && lowestDeductible > 0;
+    const step1Complete = totalSavingsBalance >= highestDeductible && highestDeductible > 0;
 
     // Step 2: Employer Match
     const retirementContributionsWithMatch = contributionFields.filter((contribution) => 
@@ -1247,7 +1428,19 @@ function Index() {
       const assetType = (contribution.assetType || '').toLowerCase();
       return (label.includes('roth') || label.includes('hsa')) && parseAmount(contribution.monthlyContribution) > 0;
     });
-    const step5Complete = rothContributions.length > 0;
+    
+    const hsaAsset = assetFields.find((asset) => asset.isHSA);
+    const isContributingToHSA = hsaAsset && hsaAsset.activelyContributing;
+    const hasRothContributions = rothContributions.length > 0;
+    const hsaRequired = aboutMe.hasHighDeductiblePlan;
+    
+    const step5Complete = (() => {
+      if (!hsaRequired) {
+        return hasRothContributions;
+      }
+      
+      return hasRothContributions && isContributingToHSA;
+    })();
 
     // Step 6: Max out retirement (on track + 25% of gross income)
     const retirementContributionPercentage = monthlyIncome > 0 
@@ -1257,7 +1450,7 @@ function Index() {
 
     // Step 7: Hyper Accumulation (savings budget met + active investment contribution)
     const saveBudgetSummary = categorySummaries.find(cat => cat.category === 'save');
-    const saveBudgetMet = saveBudgetSummary && saveBudgetSummary.actual >= saveBudgetSummary.allocated;
+    const saveBudgetMet = saveBudgetSummary && saveBudgetSummary.actual >= saveBudgetSummary.budget;
     const investmentContributions = contributionFields.filter((contribution) => {
       const assetType = (contribution.assetType || '').toLowerCase();
       return assetType === 'investment account' && parseAmount(contribution.monthlyContribution) > 0;
@@ -1292,18 +1485,18 @@ function Index() {
         {
           number: 1,
           title: 'Deductibles Covered',
-          description: 'Build emergency savings to cover your highest insurance deductible',
+          description: 'The "Oh Shit" fund. If you achieve this step, no matter what happens, crashed car, broken leg, etc. You will be able to cover the deductible. This will save you from making desperate decisions that could set you back quite far.',
           completed: step1Complete,
           details: {
             totalSavingsBalance,
-            lowestDeductible,
-            remaining: Math.max(0, lowestDeductible - totalSavingsBalance)
+            highestDeductible,
+            remaining: Math.max(0, highestDeductible - totalSavingsBalance)
           }
         },
         {
           number: 2,
           title: 'Employer Match',
-          description: 'Get the full employer match on all retirement accounts',
+          description: 'This is a big deal, there is a reason it is number 2. If your employer offers a match on retirement contributions this is guaranteed growth which is the golden goose of all investors. You should do your absolute best to create enough margin in your budget that you can take advantage of this amazing opportunity.',
           completed: step2Complete,
           details: {
             totalRetirementContributions: retirementContributionsWithMatch.length,
@@ -1314,7 +1507,7 @@ function Index() {
         {
           number: 3,
           title: 'High-Interest Debt',
-          description: 'Eliminate debt over 7% interest (or age-based student loan thresholds)',
+          description: 'High Interest debt eviscerates financial growth and needs to be dealt with quickly. It can very quickly spiral. This is any debt you have where the interest outpaces the expected return you could get from investing the money instead (7%), with the exception of student loans.',
           completed: step3Complete,
           details: {
             highInterestDebts,
@@ -1324,7 +1517,7 @@ function Index() {
         {
           number: 4,
           title: 'Emergency Fund',
-          description: 'Save 6 months of needs expenses in your savings account',
+          description: 'This is the safety net and honestly, until you have this in place, I would recommend putting every dollar you can into achieving this and the previous steps. Not having an emergency savings IS an emergency. This will make sure you are covered no matter what happens, without this, if something were to happen, you would need to put it on debt. This is an important step that should not be skipped as the peace of mind is priceless.',
           completed: step4Complete,
           details: {
             totalSavingsBalance,
@@ -1335,21 +1528,27 @@ function Index() {
         },
         {
           number: 5,
-          title: 'ROTH & HSA',
-          description: 'Start contributing to ROTH IRA and/or HSA accounts',
+          title: 'ROTH IRA & HSA',
+          description: 'These are the best retirement accounts you can contribute to after you max out your employer match. HSAs have a triple tax advantage and ROTH IRAs are a bit less restrictive than 401Ks.',
           completed: step5Complete,
           details: {
             rothContributions,
             totalRothContributions: rothContributions.length,
             monthlyRothAmount: rothContributions.reduce((sum, c) => 
               sum + parseAmount(c.monthlyContribution) * getContributionMultiplier(c.frequency), 0
-            )
+            ),
+            hsaRequired,
+            isContributingToHSA,
+            hasRothContributions,
+            requirementMessage: hsaRequired 
+              ? 'Requires Roth IRA and HSA contributions'
+              : 'Requires Roth IRA or HSA contributions'
           }
         },
         {
           number: 6,
           title: 'Max Out Retirement',
-          description: 'Be on track for retirement and contribute 25% of monthly income',
+          description: 'Once you are maxing out ROTH IRA and/or HSA contributions, if you still are not contributing at least 25% of your income (including employer matches) you should contribute more to your 401K until you hit that percentage.',
           completed: step6Complete,
           details: {
             isOnTrack: retirementTracking.isOnTrack,
@@ -1362,7 +1561,7 @@ function Index() {
         {
           number: 7,
           title: 'Hyper Accumulation',
-          description: 'Meet your savings budget and invest in taxable accounts',
+          description: 'At this point, you can start having some fun. You can open an individual brokerage account and start investing in stocks that you can access before you are old!',
           completed: step7Complete,
           details: {
             saveBudgetMet,
@@ -1378,7 +1577,7 @@ function Index() {
         {
           number: 8,
           title: 'Prepaid Expenses',
-          description: 'Save for future expenses with active savings goals',
+          description: 'This step is where you can start saving for things like vacations, new car, home down payment, etc. All the things above are a more efficient use of your money, but personal finance is PERSONAL. If you need to save up for something before you complete a previous step, that is ok, just be smart!',
           completed: step8Complete,
           details: {
             activeSavingsGoals,
@@ -1391,7 +1590,7 @@ function Index() {
         {
           number: 9,
           title: 'Low Interest Debt',
-          description: 'Pay off all remaining debt to achieve complete financial freedom',
+          description: 'The least efficient use of your money, but can provide a lot of piece of mind. Also, it cuts down on that needs budget. And just think about it "Debt-Free", what a thing to be!',
           completed: step9Complete,
           details: {
             totalRemainingDebt,
@@ -1410,9 +1609,11 @@ function Index() {
       debtToIncomeRatio,
       totalMonthlyDebtPayments,
       savingsProjection,
-      financialOrderOfOperations
+      financialOrderOfOperations,
+      maxAdditionalSavings
     });
     setAdditionalDebtPayment(Math.max(100, addlDebtPaymentSum));
+    setAdditionalSavings(baseMonthlySavingsContribution);
     setPayoffMethod('snowball');
     setRolloverPaidOffMinimums(true);
     setDismissedWarnings([]);
@@ -1421,6 +1622,10 @@ function Index() {
     setSelectedNetWorthSegment(null);
     setMaxUnlockedStep(activeInputSteps.length - 1);
     setFormCollapsed(true);
+    setInitialResultStep(currentResult);
+
+    // Save all input data to localStorage
+    saveToLocalStorage();
   };
 
   // Recalculate when retirement rate of return changes (if already viewing results)
@@ -1431,35 +1636,6 @@ function Index() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retirementRateOfReturn]);
-
-  const handleHelpOptionToggle = (option) => {
-    setSelectedHelpOptions((previous) => {
-      const isSelected = previous.includes(option);
-
-      if (option === allOptionLabel) {
-        return isSelected ? [] : [allOptionLabel];
-      }
-
-      if (previous.includes(allOptionLabel)) {
-        return [option];
-      }
-
-      if (isSelected) {
-        return previous.filter((item) => item !== option);
-      }
-
-      return [...previous, option];
-    });
-  };
-
-  const handleHelpChooserContinue = () => {
-    if (selectedHelpOptions.length === 0) {
-      return;
-    }
-
-    setShowHelpChooser(false);
-    setShowHousingChooser(true);
-  };
 
   const updateHousingInfo = (key, rawValue) => {
     const nextValue = key === 'occupancy' ? rawValue : sanitizeDecimalInput(rawValue);
@@ -1537,7 +1713,8 @@ function Index() {
             ...next[exactRentIndex],
             label: 'Rent',
             value: rentAmount,
-            category: 'needs'
+            category: 'needs',
+            isRent: true
           };
           return next;
         }
@@ -1546,7 +1723,8 @@ function Index() {
           {
             ...createItem('Rent'),
             value: rentAmount,
-            category: 'needs'
+            category: 'needs',
+            isRent: true
           },
           ...previous
         ];
@@ -1603,11 +1781,82 @@ function Index() {
       return [homeEquityAsset, ...previous];
     });
 
+    setShowHousingChooser(false);
+    setShowCarLoansChooser(true);
+  };
+
+  const updateCarLoansInfo = (hasLoans) => {
+    if (hasLoans === 'no') {
+      setCarLoansInfo({
+        hasCarLoans: 'no',
+        loans: []
+      });
+    } else {
+      setCarLoansInfo((previous) => ({
+        ...previous,
+        hasCarLoans: 'yes',
+        loans: previous.loans.length > 0 ? previous.loans : [{
+          id: `car-loan-${Date.now()}`,
+          name: '',
+          balance: '',
+          interestRate: '',
+          monthlyPayment: ''
+        }]
+      }));
+    }
+  };
+
+  const updateCarLoan = (loanId, field, value) => {
+    setCarLoansInfo((previous) => ({
+      ...previous,
+      loans: previous.loans.map((loan) =>
+        loan.id === loanId ? { ...loan, [field]: sanitizeDecimalInput(value) } : loan
+      )
+    }));
+  };
+
+  const addCarLoan = () => {
+    setCarLoansInfo((previous) => ({
+      ...previous,
+      loans: [
+        ...previous.loans,
+        {
+          id: `car-loan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: '',
+          balance: '',
+          interestRate: '',
+          monthlyPayment: ''
+        }
+      ]
+    }));
+  };
+
+  const removeCarLoan = (loanId) => {
+    setCarLoansInfo((previous) => ({
+      ...previous,
+      loans: previous.loans.filter((loan) => loan.id !== loanId)
+    }));
+  };
+
+  const canContinueCarLoans = useMemo(() => {
+    if (carLoansInfo.hasCarLoans === 'no') {
+      return true;
+    }
+
+    return carLoansInfo.loans.every((loan) => {
+      return loan.balance && loan.interestRate && loan.monthlyPayment;
+    });
+  }, [carLoansInfo]);
+
+  const handleCarLoansContinue = () => {
+    if (!canContinueCarLoans) {
+      return;
+    }
+
     setActiveStep(0);
     setMaxUnlockedStep(0);
     setHasStarted(true);
-    setShowHousingChooser(false);
-    setShowHelpChooser(false);
+    setShowCarLoansChooser(false);
   };
 
   return (
@@ -1617,24 +1866,44 @@ function Index() {
       <OnboardingScreens
         hasStarted={hasStarted}
         setHasStarted={setHasStarted}
-        showHelpChooser={showHelpChooser}
         showHousingChooser={showHousingChooser}
-        setShowHelpChooser={setShowHelpChooser}
         setShowHousingChooser={setShowHousingChooser}
-        selectedHelpOptions={selectedHelpOptions}
-        helpOptions={helpOptions}
-        allOptionLabel={allOptionLabel}
-        handleHelpOptionToggle={handleHelpOptionToggle}
-        handleHelpChooserContinue={handleHelpChooserContinue}
+        showCarLoansChooser={showCarLoansChooser}
+        setShowCarLoansChooser={setShowCarLoansChooser}
+        showWelcomeBack={showWelcomeBack}
+        setShowWelcomeBack={setShowWelcomeBack}
+        handleCalculate={handleCalculate}
         housingInfo={housingInfo}
         updateHousingInfo={updateHousingInfo}
         handleHousingPaidOffToggle={handleHousingPaidOffToggle}
         canContinueHousing={canContinueHousing}
         handleHousingContinue={handleHousingContinue}
+        carLoansInfo={carLoansInfo}
+        updateCarLoansInfo={updateCarLoansInfo}
+        updateCarLoan={updateCarLoan}
+        addCarLoan={addCarLoan}
+        removeCarLoan={removeCarLoan}
+        canContinueCarLoans={canContinueCarLoans}
+        handleCarLoansContinue={handleCarLoansContinue}
+        calculationResult={calculationResult}
       />
 
       {hasStarted && !formCollapsed && (
         <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+            <button
+              type="button"
+              className="add-field-btn"
+              onClick={() => {
+                setShowHousingChooser(true);
+                setShowWelcomeBack(false);
+                setHasStarted(false);
+              }}
+              style={{ fontSize: '0.875rem' }}
+            >
+              ← Change Housing & Car Loans
+            </button>
+          </div>
           <nav className="stepper-breadcrumb stepper-line" aria-label="Input steps">
             <ol>
               {activeInputSteps.map((step, index) => {
@@ -1751,6 +2020,16 @@ function Index() {
                 Previous
               </button>
             )}
+            {calculationResult && currentStep?.key !== 'savings-goals' && (
+              <button
+                type="button"
+                className="add-field-btn"
+                onClick={handleCalculate}
+                style={{ marginLeft: activeStep === 0 ? '0' : 'auto', marginRight: '0.5rem' }}
+              >
+                Recalculate
+              </button>
+            )}
             <button
               type="button"
               className="calculate-btn"
@@ -1799,12 +2078,19 @@ function Index() {
           guidelines={guidelines}
           retirementRateOfReturn={retirementRateOfReturn}
           setRetirementRateOfReturn={setRetirementRateOfReturn}
+          retirementAge={retirementAge}
+          setRetirementAge={setRetirementAge}
+          maxAdditionalSavings={calculationResult.maxAdditionalSavings}
+          additionalSavings={additionalSavings}
+          setAdditionalSavings={setAdditionalSavings}
+          initialActiveStep={initialResultStep}
           onEditInputs={() => {
             setFormCollapsed(false);
-            const maxStepIndex = Math.max(activeInputSteps.length - 1, 0);
-            setActiveStep(maxStepIndex);
-            setMaxUnlockedStep(maxStepIndex);
+            const targetStep = Math.min(currentInput, Math.max(activeInputSteps.length - 1, 0));
+            setActiveStep(targetStep);
+            setMaxUnlockedStep(Math.max(targetStep, maxUnlockedStep));
           }}
+          onResultStepChange={setCurrentResult}
         />
       )}
     </div>

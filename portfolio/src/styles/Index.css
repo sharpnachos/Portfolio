@@ -320,6 +320,10 @@
   color: #64748b;
 }
 
+.item-title-btn:disabled::after {
+  display: none;
+}
+
 .item-title-btn:hover {
   text-decoration: underline;
 }

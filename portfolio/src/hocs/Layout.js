@@ -1,10 +1,10 @@
 import React, { Fragment } from 'react';
 import Navbar from '../components/Navbar';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 
 const Layout = ({ children }) => {
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
     const location = useLocation();
     const hideNavbar = location.pathname === "/";
 

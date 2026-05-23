@@ -38,6 +38,18 @@ function SavingsGoalsColumn({
   return (
     <section className="finance-column rounded-2xl border border-emerald-100/80 bg-white/90 shadow-glow backdrop-blur-sm" aria-label="Savings Goals column">
       <h2>Savings Goals</h2>
+      <p className="field-help-text" style={{ marginBottom: '1rem', padding: '0 1rem', opacity: 0.8 }}>
+        You saving up for something big? Down Payment on a house? Fancy vacation? That{' '}
+        <a 
+          href="https://www.alibaba.com/product-detail/Inflatable-Cartoon-Characters-Plush-Toy-Chair_1601583814521.html?mark=google_shopping&pcy=us_en&src=sem_ggl&field=UG&from=sem_ggl&cmpgn=22447501333&adgrp=179561022882&fditm=&tgt=pla-1989436419253&locintrst=&locphyscl=9021428&mtchtyp=&ntwrk=g&device=c&dvcmdl=&creative=746287692655&plcmnt=&plcmntcat=&aceid=&position=&gad_source=1&gad_campaignid=22447501333&gbraid=0AAAAAD8m77qqUgfIDmqGcHjn03eDVnPh6&gclid=Cj0KCQjwoMXQBhDcARIsAH-eEtvRRAicvn9KaudBSLG0WnhPhACxWg-6T5ISMfkkSHa0xHcnno8VWx8aAhVeEALw_wcB"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#16a34a', textDecoration: 'underline' }}
+        >
+          Alibaba gorilla couch
+        </a>
+        ? Add those goals here and we can factor them into your savings timeline.
+      </p>
       <div className="field-list">
         {values.map((item, index) => {
           const fieldId = `${inputPrefix}-${item.id}`;

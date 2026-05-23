@@ -30,9 +30,33 @@ function FinanceInputColumn({
   removeField,
   addField
 }) {
+  const getDescriptionText = (title) => {
+    switch (title) {
+      case 'Income':
+        return 'Add all monthly sources of income including salary, side hustles, and other regular earnings.';
+      case 'Assets':
+        return 'Add all accounts you have that are worth something, including checking accounts, savings accounts, retirement accounts, investment accounts, even your Venmo balance, the more you add the better your Net Worth will look! On investment accounts, please select the "Actively contributing?" box if you are adding money to it on a monthly basis.';
+      case 'Contributions':
+        return 'Below are any accounts you marked as actively contributing in the Assets section. For each one, add how much you contribute to it on a monthly basis. For retirement accounts, also add your employer match percentage if applicable and whether you have maxed out that match.';
+      case 'Debt':
+        return 'Here is the not so fun part. List all your debts including credit cards, loans, and other outstanding balances.';
+      case 'Expenses':
+        return 'Enter your monthly expenses categorized as needs, wants, or savings. Needs are things you have to pay for to survive in this world, like rent, groceries, and utilities. Unfortunately this includes debt payments so these have automatically been added as Needs expenses. Wants are things that make living in this world worth it, like Coors Banquet, White Monster Energy Drinks, and some other things I cannot think of right now. Savings are monthly contributions towards assets or goals. The contributions you entered have been added by default. If you are contributing towards debt, please select the "Addl. debt payment?" box to have it factored into your debt payoff timeline.';
+      default:
+        return null;
+    }
+  };
+
+  const description = getDescriptionText(title);
+
   return (
     <section className="finance-column rounded-2xl border border-emerald-100/80 bg-white/90 shadow-glow backdrop-blur-sm" aria-label={`${title} column`}>
       <h2>{title}</h2>
+      {description && (
+        <p className="field-help-text" style={{ marginBottom: '1rem', padding: '0 1rem', opacity: 0.8 }}>
+          {description}
+        </p>
+      )}
       <div className="field-list">
         {values.length === 0 && title === 'Contributions' && (
           <p className="field-help-text">Mark assets as actively contributing to create contribution rows.</p>
@@ -43,7 +67,7 @@ function FinanceInputColumn({
 
           return (
             <div className="field-row" key={fieldId}>
-              {title === 'Contributions' ? (
+              {title === 'Contributions' || item.isRent ? (
                 <span className="item-title-static">{item.label}</span>
               ) : editingItemId === item.id ? (
                 <input
@@ -69,15 +93,21 @@ function FinanceInputColumn({
                   className="item-title-btn"
                   onClick={() => startEditingLabel(item)}
                   aria-label={`Edit ${item.label} title`}
-                  disabled={item.isDebtPayment || item.isRetirementContribution}
+                  disabled={item.isDebtPayment || item.isRetirementContribution || item.isCarLoan || item.isHSA || item.isRent}
                   title={
                     item.isDebtPayment 
                       ? 'Debt payment name is set from the Debt page' 
                       : item.isRetirementContribution 
                         ? 'Contribution name is set from the Contributions page'
+                        : item.isCarLoan
+                          ? 'Car loan details are set from onboarding'
+                          : item.isHSA
+                            ? 'HSA is automatically added when high deductible plan is selected'
+                          : item.isRent
+                            ? 'Rent details are set from onboarding'
                         : 'Click to edit'
                   }
-                  style={(item.isDebtPayment || item.isRetirementContribution) ? { cursor: 'default', opacity: 0.7 } : {}}
+                  style={(item.isDebtPayment || item.isRetirementContribution || item.isCarLoan || item.isHSA || item.isRent) ? { cursor: 'default', opacity: 0.7 } : {}}
                 >
                   {item.label}
                 </button>
@@ -94,6 +124,9 @@ function FinanceInputColumn({
                       onFocus={() => setActiveAmountField(`${fieldId}-balance`)}
                       onBlur={() => setActiveAmountField(null)}
                       onChange={(event) => updateFieldAmountByKey(setter, values, index, 'balance', event.target.value)}
+                      disabled={item.isCarLoan}
+                      title={item.isCarLoan ? 'Car loan balance is set from onboarding' : ''}
+                      style={item.isCarLoan ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                     />
                     <input
                       id={`${fieldId}-minimum`}
@@ -104,6 +137,9 @@ function FinanceInputColumn({
                       onFocus={() => setActiveAmountField(`${fieldId}-minimum`)}
                       onBlur={() => setActiveAmountField(null)}
                       onChange={(event) => updateFieldAmountByKey(setter, values, index, 'minimumPayment', event.target.value)}
+                      disabled={item.isCarLoan}
+                      title={item.isCarLoan ? 'Car loan payment is set from onboarding' : ''}
+                      style={item.isCarLoan ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                     />
                     <input
                       id={`${fieldId}-interest`}
@@ -114,10 +150,15 @@ function FinanceInputColumn({
                       onFocus={() => setActiveRateField(`${fieldId}-interest`)}
                       onBlur={() => setActiveRateField(null)}
                       onChange={(event) => updateDebtField(setter, values, index, 'interestRate', sanitizeDecimalInput(event.target.value))}
+                      disabled={item.isCarLoan}
+                      title={item.isCarLoan ? 'Car loan interest rate is set from onboarding' : ''}
+                      style={item.isCarLoan ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                     />
                     <select
                       className="frequency-select"
                       value={item.debtType || 'other'}
+                      disabled={item.isCarLoan}
+                      title={item.isCarLoan ? 'Car loan type cannot be changed' : ''}
                       onChange={(event) => updateDebtField(setter, values, index, 'debtType', event.target.value)}
                       aria-label={`${item.label} debt type`}
                     >
@@ -140,14 +181,17 @@ function FinanceInputColumn({
                     onFocus={() => setActiveAmountField(fieldId)}
                     onBlur={() => setActiveAmountField(null)}
                     onChange={(event) => updateFieldValue(setter, values, index, event.target.value)}
-                    disabled={item.isDebtPayment || item.isRetirementContribution}
+                    disabled={item.isDebtPayment || item.isRetirementContribution || item.isRent}
                     title={
                       item.isDebtPayment 
                         ? 'Debt payment amount is set from the Debt page' 
                         : item.isRetirementContribution 
                           ? 'Contribution amount is set from the Contributions page'
+                          : item.isRent
+                            ? 'Rent amount is set from onboarding'
                           : ''
                     }
+                    style={(item.isDebtPayment || item.isRetirementContribution || item.isRent) ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                   />
                 ) : null}
                 {title === 'Income' && (
@@ -168,14 +212,17 @@ function FinanceInputColumn({
                     value={item.category || 'needs'}
                     onChange={(event) => updateFieldCategory(setter, values, index, event.target.value)}
                     aria-label={`${item.label} category`}
-                    disabled={item.isDebtPayment || item.isRetirementContribution}
+                    disabled={item.isDebtPayment || item.isRetirementContribution || item.isRent}
                     title={
                       item.isDebtPayment 
                         ? 'Debt payments are always in the Needs category' 
                         : item.isRetirementContribution 
                           ? 'Contributions are always in the Save category'
+                          : item.isRent
+                            ? 'Rent is always in the Needs category'
                           : ''
                     }
+                    style={(item.isDebtPayment || item.isRetirementContribution || item.isRent) ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
                   >
                     <option value="needs">Needs</option>
                     <option value="wants">Wants</option>
@@ -215,6 +262,9 @@ function FinanceInputColumn({
                     value={item.assetType || 'checking account'}
                     onChange={(event) => updateAssetType(setter, values, index, event.target.value)}
                     aria-label={`${item.label} asset type`}
+                    disabled={item.isHSA}
+                    title={item.isHSA ? 'HSA must be a retirement account' : ''}
+                    style={item.isHSA ? { cursor: 'not-allowed', opacity: 0.5 } : {}}
                   >
                     <option value="checking account">Checking account</option>
                     <option value="savings account">Savings account</option>
@@ -305,7 +355,7 @@ function FinanceInputColumn({
                     )}
                   </div>
                 )}
-                {title !== 'Contributions' && !item.isDebtPayment && !item.isRetirementContribution && (
+                {title !== 'Contributions' && !item.isDebtPayment && !item.isRetirementContribution && !item.isCarLoan && !item.isHSA && !item.isRent && (
                   <button
                     type="button"
                     className="remove-field-btn"

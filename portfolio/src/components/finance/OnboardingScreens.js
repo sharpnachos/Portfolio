@@ -16,23 +16,31 @@ const tMoneySayings = [
 function OnboardingScreens({
   hasStarted,
   setHasStarted,
-  showHelpChooser,
   showHousingChooser,
-  setShowHelpChooser,
   setShowHousingChooser,
-  selectedHelpOptions,
-  helpOptions,
-  allOptionLabel,
-  handleHelpOptionToggle,
-  handleHelpChooserContinue,
+  showCarLoansChooser,
+  setShowCarLoansChooser,
+  showWelcomeBack,
+  setShowWelcomeBack,
+  handleCalculate,
   housingInfo,
   updateHousingInfo,
   handleHousingPaidOffToggle,
   canContinueHousing,
-  handleHousingContinue
+  handleHousingContinue,
+  carLoansInfo,
+  updateCarLoansInfo,
+  updateCarLoan,
+  addCarLoan,
+  removeCarLoan,
+  canContinueCarLoans,
+  handleCarLoansContinue,
+  calculationResult
 }) {
-  const isAllOptionSelected = selectedHelpOptions.includes(allOptionLabel);
   const [activeHousingField, setActiveHousingField] = useState(null);
+  const [activeCarLoanField, setActiveCarLoanField] = useState(null);
+  const [editingCarLoanId, setEditingCarLoanId] = useState(null);
+  const [draftCarLoanName, setDraftCarLoanName] = useState('');
   const [showSpeechBubble, setShowSpeechBubble] = useState(false);
   const [currentSaying, setCurrentSaying] = useState('');
 
@@ -100,6 +108,25 @@ function OnboardingScreens({
     return `${parseNumeric(rawValue).toFixed(2)}%`;
   };
 
+  const startEditingCarLoanName = (loan) => {
+    setEditingCarLoanId(loan.id);
+    setDraftCarLoanName(loan.name || '');
+  };
+
+  const saveCarLoanName = (loanId) => {
+    const trimmedName = draftCarLoanName.trim();
+    if (trimmedName) {
+      updateCarLoan(loanId, 'name', trimmedName);
+    }
+    setEditingCarLoanId(null);
+    setDraftCarLoanName('');
+  };
+
+  const cancelEditingCarLoanName = () => {
+    setEditingCarLoanId(null);
+    setDraftCarLoanName('');
+  };
+
   return (
     <>
       {hasStarted && (
@@ -107,69 +134,74 @@ function OnboardingScreens({
           <button
             type="button"
             className="tmoney-brand"
-            aria-label="T-Money $$$ Toolbox"
+            aria-label="T-Money's $$$ Toolbox"
             onClick={() => {
               setHasStarted(false);
-              setShowHelpChooser(false);
               setShowHousingChooser(false);
+              setShowCarLoansChooser(false);
+              // Check if localStorage has saved data to show welcome back
+              const savedData = localStorage.getItem('t-money-toolbox-calculator-data');
+              setShowWelcomeBack(savedData ? true : false);
             }}
           >
             <span className="tmoney-brand-emoji" aria-hidden="true">💸</span>
-            <span className="tmoney-brand-text">T-Money $$$ Toolbox</span>
+            <span className="tmoney-brand-text">T-Money's $$$ Toolbox</span>
           </button>
           {showSpeechBubble && (
             <div className="tmoney-speech-bubble">
               <div className="speech-bubble-content">
-                <strong>T-Money says:</strong> {currentSaying}
+                <strong>T-Money $$$ says:</strong> {currentSaying}
               </div>
             </div>
           )}
         </div>
       )}
 
-      {!hasStarted && !showHelpChooser && !showHousingChooser && (
+      {!hasStarted && !showWelcomeBack && !showHousingChooser && !showCarLoansChooser && (
         <section className="intro-screen" aria-label="Introduction">
           <h1 className="intro-title">Hey!</h1>
-          <p className="intro-copy">Welcome to the T-Money $$$ Toolbox, follow the prompts and take the next step in your financial journey today.</p>
+          <p className="intro-copy">Welcome to T-Money's $$$ Toolbox! Pull up all your financial information because we are about to dive deep!</p>
           <button
             type="button"
             className="intro-start-btn"
-            onClick={() => setShowHelpChooser(true)}
+            onClick={() => setShowHousingChooser(true)}
           >
             Start <span aria-hidden="true">→</span>
           </button>
         </section>
       )}
 
-      {!hasStarted && showHelpChooser && !showHousingChooser && (
-        <section className="help-chooser-screen" aria-label="What do you want options">
-          <h2 className="help-chooser-title">What do you want?</h2>
-          <div className="help-options-grid">
-            {helpOptions.map((option) => {
-              const isSelected = selectedHelpOptions.includes(option);
-              const isDisabled = isAllOptionSelected && option !== allOptionLabel;
-
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  className={`help-option-btn ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-                  onClick={() => handleHelpOptionToggle(option)}
-                  disabled={isDisabled}
-                >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-          <div className="help-continue-wrap">
+      {!hasStarted && showWelcomeBack && (
+        <section className="intro-screen" aria-label="Welcome Back">
+          <h1 className="intro-title">Welcome Back!</h1>
+          <p className="intro-copy">We've saved your previous data. Click below to view your results or start fresh.</p>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
-              className="help-continue-btn"
-              onClick={handleHelpChooserContinue}
-              disabled={selectedHelpOptions.length === 0}
+              className="intro-start-btn"
+              onClick={() => {
+                setShowWelcomeBack(false);
+                setHasStarted(true);
+                // Trigger calculation with loaded data
+                setTimeout(() => handleCalculate(), 100);
+              }}
             >
-              Continue
+              View Dashboard <span aria-hidden="true">→</span>
+            </button>
+            <button
+              type="button"
+              className="intro-start-btn secondary"
+              onClick={() => {
+                const confirmed = window.confirm('Are you sure? This will clear all stored data.');
+                if (confirmed) {
+                  // Clear localStorage and start fresh
+                  localStorage.removeItem('t-money-toolbox-calculator-data');
+                  window.location.reload();
+                }
+              }}
+              style={{ background: 'rgba(255,255,255,0.2)' }}
+            >
+              Start Fresh
             </button>
           </div>
         </section>
@@ -298,13 +330,169 @@ function OnboardingScreens({
             </div>
           )}
 
+          {!calculationResult && (
+            <div className="help-continue-wrap">
+              <button
+                type="button"
+                className="help-continue-btn secondary"
+                onClick={() => setShowHousingChooser(false)}
+              >
+                Back
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {!hasStarted && showCarLoansChooser && (
+        <section className="help-chooser-screen" aria-label="Car loans setup">
+          <h2 className="help-chooser-title">Do you have any car loans?</h2>
+
+          <div className="housing-choice-row" role="radiogroup" aria-label="Car loans">
+            <label className="housing-radio-card" htmlFor="car-loans-yes">
+              <input
+                id="car-loans-yes"
+                type="radio"
+                name="car-loans-choice"
+                value="yes"
+                checked={carLoansInfo.hasCarLoans === 'yes'}
+                onChange={(event) => updateCarLoansInfo(event.target.value)}
+              />
+              <span>Yes</span>
+            </label>
+            <label className="housing-radio-card" htmlFor="car-loans-no">
+              <input
+                id="car-loans-no"
+                type="radio"
+                name="car-loans-choice"
+                value="no"
+                checked={carLoansInfo.hasCarLoans === 'no'}
+                onChange={(event) => updateCarLoansInfo(event.target.value)}
+              />
+              <span>No</span>
+            </label>
+          </div>
+
+          {carLoansInfo.hasCarLoans === 'yes' && (
+            <div className="housing-fields-wrap">
+              {carLoansInfo.loans.map((loan, index) => (
+                <div key={loan.id} className="car-loan-item" style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    {editingCarLoanId === loan.id ? (
+                      <input
+                        type="text"
+                        className="title-edit-input"
+                        value={draftCarLoanName}
+                        onChange={(event) => setDraftCarLoanName(event.target.value)}
+                        onBlur={() => saveCarLoanName(loan.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            saveCarLoanName(loan.id);
+                          }
+                          if (event.key === 'Escape') {
+                            cancelEditingCarLoanName();
+                          }
+                        }}
+                        autoFocus
+                        style={{ fontSize: '1rem', margin: 0, background: 'white', color: '#333', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="item-title-btn"
+                        onClick={() => startEditingCarLoanName(loan)}
+                        style={{ fontSize: '1rem', margin: 0, color: 'rgba(255,255,255,0.95)' }}
+                      >
+                        {loan.name || `Car Loan ${index + 1}`}
+                      </button>
+                    )}
+                    {carLoansInfo.loans.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeCarLoan(loan.id)}
+                        style={{ 
+                          background: 'rgba(239, 68, 68, 0.2)', 
+                          color: 'white', 
+                          border: 'none', 
+                          padding: '0.25rem 0.75rem', 
+                          borderRadius: '4px', 
+                          cursor: 'pointer',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <label htmlFor={`car-loan-${loan.id}-balance`}>Remaining balance</label>
+                  <input
+                    id={`car-loan-${loan.id}-balance`}
+                    type="text"
+                    inputMode="decimal"
+                    value={activeCarLoanField === `${loan.id}-balance` ? loan.balance : formatCurrencyDisplay(loan.balance)}
+                    onFocus={() => setActiveCarLoanField(`${loan.id}-balance`)}
+                    onBlur={() => setActiveCarLoanField(null)}
+                    onChange={(event) => updateCarLoan(loan.id, 'balance', event.target.value)}
+                    placeholder="Remaining balance"
+                  />
+
+                  <label htmlFor={`car-loan-${loan.id}-rate`}>Interest rate (%)</label>
+                  <input
+                    id={`car-loan-${loan.id}-rate`}
+                    type="text"
+                    inputMode="decimal"
+                    value={activeCarLoanField === `${loan.id}-rate` ? loan.interestRate : formatPercentDisplay(loan.interestRate)}
+                    onFocus={() => setActiveCarLoanField(`${loan.id}-rate`)}
+                    onBlur={() => setActiveCarLoanField(null)}
+                    onChange={(event) => updateCarLoan(loan.id, 'interestRate', event.target.value)}
+                    placeholder="Interest rate"
+                  />
+
+                  <label htmlFor={`car-loan-${loan.id}-payment`}>Monthly payment</label>
+                  <input
+                    id={`car-loan-${loan.id}-payment`}
+                    type="text"
+                    inputMode="decimal"
+                    value={activeCarLoanField === `${loan.id}-payment` ? loan.monthlyPayment : formatCurrencyDisplay(loan.monthlyPayment)}
+                    onFocus={() => setActiveCarLoanField(`${loan.id}-payment`)}
+                    onBlur={() => setActiveCarLoanField(null)}
+                    onChange={(event) => updateCarLoan(loan.id, 'monthlyPayment', event.target.value)}
+                    placeholder="Monthly payment"
+                  />
+                </div>
+              ))}
+
+              <button
+                type="button"
+                className="help-continue-btn secondary"
+                onClick={addCarLoan}
+                style={{ width: '100%', marginTop: '1rem' }}
+              >
+                + Add Another Car Loan
+              </button>
+            </div>
+          )}
+
+          {canContinueCarLoans && (
+            <div className="help-continue-wrap">
+              <button
+                type="button"
+                className="help-continue-btn"
+                onClick={handleCarLoansContinue}
+              >
+                Continue
+              </button>
+            </div>
+          )}
+
           <div className="help-continue-wrap">
             <button
               type="button"
               className="help-continue-btn secondary"
               onClick={() => {
-                setShowHousingChooser(false);
-                setShowHelpChooser(true);
+                setShowCarLoansChooser(false);
+                setShowHousingChooser(true);
               }}
             >
               Back
