@@ -48,7 +48,6 @@ function ResultsPanel({
   // Multi-step navigation state
   const [activeResultStep, setActiveResultStep] = useState(0);
   const [showPayoffMethodInfo, setShowPayoffMethodInfo] = useState(false);
-  const [activeDebtPaymentField, setActiveDebtPaymentField] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const payoffMethodInfoRef = useRef(null);
 
@@ -197,9 +196,6 @@ function ResultsPanel({
 
   const savingsTimeline = calculateSavingsTimeline();
   const baseMonthlySavingsContribution = calculationResult?.savingsProjection?.baseMonthlySavingsContribution || 0;
-  const projectedMonthlySavings = additionalSavings !== null 
-    ? additionalSavings 
-    : baseMonthlySavingsContribution;
 
   // Define steps based on what should be shown
   const steps = [];

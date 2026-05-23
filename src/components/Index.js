@@ -662,9 +662,6 @@ function Index() {
     const carLimitCheckAmount = totalAutoLoanMinimumPayment > 0
       ? totalAutoLoanMinimumPayment
       : totalCarPayment;
-    const carLimitSourceText = totalAutoLoanMinimumPayment > 0
-      ? 'Auto loan minimum payments'
-      : 'Car payment expenses';
 
     const isOwner = housingInfo.occupancy === 'own';
     const rentLow = monthlyIncome * 0.25;
@@ -964,11 +961,6 @@ function Index() {
   };
 
   const handleCalculate = () => {
-    const totalMonthlyContributions = contributionFields.reduce((sum, item) => {
-      const contributionAmount = parseAmount(item.monthlyContribution);
-      return sum + (contributionAmount * getContributionMultiplier(item.frequency));
-    }, 0);
-
     const totalDeductedContributions = contributionFields.reduce((sum, item) => {
       if (item.deductedFromPay) {
         const contributionAmount = parseAmount(item.monthlyContribution);
@@ -981,10 +973,6 @@ function Index() {
       const amount = parseAmount(item.value);
       return sum + (amount * getIncomeMultiplier(item.frequency));
     }, 0) + totalDeductedContributions;
-
-    const totalMinimumDebtPayments = debtFields.reduce((sum, item) => {
-      return sum + parseAmount(item.minimumPayment);
-    }, 0);
 
     const budgetByCategory = {
       needs: monthlyIncome * 0.5,
@@ -1213,8 +1201,6 @@ function Index() {
       retirementTargetMultiplier = 0 + (1 - 0) * progress;
     } else {
       // Under 21 - typically haven't started saving yet
-      currentMilestoneAge = 0;
-      currentMilestoneMultiplier = 0;
       nextMilestoneAge = 30;
       nextMilestoneMultiplier = 1;
       retirementTargetMultiplier = 0;
@@ -1425,7 +1411,6 @@ function Index() {
     // Step 5: ROTH and HSA contributions
     const rothContributions = contributionFields.filter((contribution) => {
       const label = (contribution.label || '').toLowerCase();
-      const assetType = (contribution.assetType || '').toLowerCase();
       return (label.includes('roth') || label.includes('hsa')) && parseAmount(contribution.monthlyContribution) > 0;
     });
     
