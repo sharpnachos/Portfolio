@@ -14,7 +14,7 @@ function AppContent() {
       <Layout>
         <Routes>
           <Route exact path='/' element={<Index />} />
-          {/* <Route path='/about' element={<About />} /> */}
+          <Route path='/about' element={<About />} />
           <Route path='/work' element={<Index />} />
           <Route path='/contact' element={<Contact />} />
           {/* Add more routes as needed */}
